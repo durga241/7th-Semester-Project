@@ -9,6 +9,8 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const http = require('http');
+const { Server } = require('socket.io');
 
 // Load environment variables from server directory FIRST
 dotenv.config({ path: path.resolve(__dirname, '.env') });
@@ -20,21 +22,71 @@ const Otp = require('./models/Otp');
 const stripeController = require('./controllers/stripeController');
 
 const app = express();
+const server = http.createServer(app);
+
+// Configure Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://127.0.0.1:5173',
+      'https://farmers-marketplace-backend.onrender.com',
+      'https://farmers-marketplace-frontend.vercel.app',
+      'https://farmers-marketplace-frontend-*.vercel.app',
+      'https://*.vercel.app'
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Content-Length', 'X-Requested-With'],
+    exposedHeaders: ['Content-Range', 'X-Content-Range']
+  }
+});
+
+// Make io accessible to routes
+app.set('socketio', io);
 
 // Enhanced CORS configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'https://farmers-marketplace-backend.onrender.com',
+  'https://farmers-marketplace-frontend.vercel.app',
+  'https://farmers-marketplace-frontend-*.vercel.app',
+  'https://*.vercel.app'
+];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if the origin is in the allowed list or matches the wildcard pattern
+    if (allowedOrigins.some(allowedOrigin => 
+      origin === allowedOrigin || 
+      (allowedOrigin.includes('*') && new RegExp(allowedOrigin.replace('*', '.*')).test(origin))
+    )) {
+      return callback(null, true);
+    }
+    
+    // For disallowed origins, return an error
+    const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+    console.warn(msg);
+    return callback(new Error(msg), false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Content-Length', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-const PORT = process.env.PORT || 3001;
 const OTP_TTL_SECONDS = Number(process.env.OTP_TTL_SECONDS || 300);
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const PORT = process.env.PORT || 3001;
 
 // In-memory storage (for testing without database)
 const otpStore = new Map();
@@ -1287,6 +1339,7 @@ app.patch('/api/orders/:orderId/status', auth, async (req, res) => {
   try {
     const { status } = req.body;
     const { orderId } = req.params;
+    const io = req.app.get('socketio');
 
     if (mongoose.connection.readyState === 1) {
       // Try to find by _id (MongoDB ObjectId)
@@ -1294,10 +1347,28 @@ app.patch('/api/orders/:orderId/status', auth, async (req, res) => {
         orderId,
         { status: status },
         { new: true }
-      ).populate('customerId', 'name email');
+      ).populate('customerId', 'name email phone');
 
       if (order) {
         console.log(`[ORDER] Status updated: ${orderId} → ${status}`);
+        
+        // Emit real-time update
+        if (io) {
+          io.to(`order-${orderId}`).emit('order-status-updated', {
+            orderId,
+            status,
+            updatedAt: new Date()
+          });
+
+          // Notify specific user
+          if (order.customerId) {
+            io.to(`user-${order.customerId._id}`).emit('order-update', {
+              orderId,
+              status,
+              message: `Your order status has been updated to: ${status}`
+            });
+          }
+        }
         
         // Send email notification to customer
         if (order.customerId && order.customerId.email) {
@@ -1935,9 +2006,33 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`[api] server running on http://localhost:${PORT}`);
-  console.log(`📁 Uploads directory: ${path.join(__dirname, 'uploads')}`);
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('New client connected:', socket.id);
+
+  // Join order room
+  socket.on('join-order-room', (orderId) => {
+    socket.join(`order-${orderId}`);
+    console.log(`User ${socket.id} joined order room: order-${orderId}`);
+  });
+
+  // Join user room
+  socket.on('join-user-room', (userId) => {
+    socket.join(`user-${userId}`);
+    console.log(`User ${socket.id} joined user room: user-${userId}`);
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+// Start the server
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`WebSocket server is running on ws://localhost:${PORT}`);
 });
 
 // Optional: secure seed endpoint (requires SEED_TOKEN)

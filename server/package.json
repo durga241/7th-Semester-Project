@@ -1,5 +1,14 @@
 {
+  "name": "farmers-marketplace-backend",
+  "version": "1.0.0",
+  "description": "Backend for Farmers Marketplace",
+  "main": "index.js",
   "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "test-connect": "node test-connect.js",
+    "install-deps": "npm install express-session passport passport-google-oauth20"
+  },
   "dependencies": {
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
@@ -15,14 +24,10 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "razorpay": "^2.9.6",
+    "socket.io": "^4.8.1",
     "stripe": "^19.1.0"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
-  },
-  "scripts": {
-    "start": "node index.js",
-    "test-connect": "node test-connect.js",
-    "install-deps": "npm install express-session passport passport-google-oauth20"
   }
 }
