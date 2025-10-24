@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear FarmConnect Session</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .info-box {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .warning-box {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .success-box {
+            background: #dcfce7;
+            border-left: 4px solid #22c55e;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            display: none;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        .secondary {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .status-item {
+            margin: 8px 0;
+            padding: 8px;
+            background: white;
+            border-radius: 5px;
+        }
+        .check {
+            color: #22c55e;
+            font-weight: bold;
+        }
+        .cross {
+            color: #ef4444;
+            font-weight: bold;
+        }
+        code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Clear FarmConnect Session</h1>
+        <p class="subtitle">Fix 403 Forbidden Error</p>
+
+        <div class="warning-box">
+            <strong>⚠️ Problem:</strong> Your JWT token has the wrong role. Even though localStorage shows "farmer", the token might have "customer" role.
+        </div>
+
+        <div class="info-box">
+            <strong>📋 Current Session Status:</strong>
+            <div class="status" id="status">
+                <div class="status-item">Checking...</div>
+            </div>
+        </div>
+
+        <button onclick="checkSession()">🔍 Check Current Session</button>
+        <button class="danger" onclick="clearSession()">🗑️ Clear All Session Data</button>
+        <button class="secondary" onclick="goToApp()">🚀 Go to FarmConnect</button>
+
+        <div class="success-box" id="successBox">
+            <strong>✅ Session Cleared Successfully!</strong>
+            <p>Now you can:</p>
+            <ol>
+                <li>Click "Go to FarmConnect" button above</li>
+                <li>Login as a <strong>FARMER</strong> (not customer)</li>
+                <li>Try adding a product</li>
+            </ol>
+        </div>
+
+        <div class="info-box" style="margin-top: 30px;">
+            <strong>📝 Steps After Clearing:</strong>
+            <ol>
+                <li>Make sure your server is running</li>
+                <li>Go to http://localhost:5173</li>
+                <li>Click "Farmer Login" (NOT Customer Login)</li>
+                <li>Enter your credentials</li>
+                <li>Go to "My Products" → "Add New Product"</li>
+                <li>Fill in details and save</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function checkSession() {
+            const token = localStorage.getItem('fc_jwt');
+            const role = localStorage.getItem('farmconnect_userRole');
+            const userName = localStorage.getItem('farmconnect_userName');
+            const userEmail = localStorage.getItem('farmconnect_userEmail');
+
+            let html = '';
+            
+            // Check token
+            if (token) {
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const tokenRole = payload.role;
+                    const tokenEmail = payload.email;
+                    
+                    html += `<div class="status-item">
+                        <span class="${token ? 'check' : 'cross'}">${token ? '✅' : '❌'}</span> 
+                        JWT Token: ${token ? 'Present' : 'Missing'}
+                    </div>`;
+                    
+                    html += `<div class="status-item">
+                        <span class="${role === 'farmer' ? 'check' : 'cross'}">${role === 'farmer' ? '✅' : '❌'}</span> 
+                        localStorage Role: <code>${role || 'none'}</code>
+                    </div>`;
+                    
+                    html += `<div class="status-item">
+                        <span class="${tokenRole === 'farmer' ? 'check' : 'cross'}">${tokenRole === 'farmer' ? '✅' : '❌'}</span> 
+                        JWT Token Role: <code>${tokenRole || 'none'}</code>
+                    </div>`;
+                    
+                    html += `<div class="status-item">
+                        User Name: <code>${userName || 'none'}</code>
+                    </div>`;
+                    
+                    html += `<div class="status-item">
+                        User Email: <code>${userEmail || tokenEmail || 'none'}</code>
+                    </div>`;
+                    
+                    if (tokenRole !== 'farmer') {
+                        html += `<div class="status-item" style="background: #fee2e2; color: #dc2626; font-weight: bold;">
+                            ❌ PROBLEM: JWT token role is "${tokenRole}" but should be "farmer"
+                        </div>`;
+                    } else if (role !== tokenRole) {
+                        html += `<div class="status-item" style="background: #fef3c7; color: #f59e0b; font-weight: bold;">
+                            ⚠️ WARNING: localStorage role (${role}) doesn't match JWT role (${tokenRole})
+                        </div>`;
+                    } else {
+                        html += `<div class="status-item" style="background: #dcfce7; color: #22c55e; font-weight: bold;">
+                            ✅ GOOD: Token role is correct!
+                        </div>`;
+                    }
+                } catch (e) {
+                    html += `<div class="status-item" style="background: #fee2e2; color: #dc2626;">
+                        ❌ ERROR: Invalid token format
+                    </div>`;
+                }
+            } else {
+                html += `<div class="status-item">
+                    <span class="cross">❌</span> No JWT Token Found
+                </div>`;
+                html += `<div class="status-item">
+                    <span class="cross">❌</span> Not logged in
+                </div>`;
+            }
+
+            document.getElementById('status').innerHTML = html;
+        }
+
+        function clearSession() {
+            if (confirm('Are you sure you want to clear all session data?\n\nThis will log you out and you\'ll need to login again.')) {
+                // Clear localStorage
+                localStorage.clear();
+                
+                // Clear sessionStorage
+                sessionStorage.clear();
+                
+                // Clear cookies (if any)
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                
+                // Show success message
+                document.getElementById('successBox').style.display = 'block';
+                
+                // Update status
+                document.getElementById('status').innerHTML = `
+                    <div class="status-item" style="background: #dcfce7; color: #22c55e; font-weight: bold;">
+                        ✅ All session data cleared!
+                    </div>
+                    <div class="status-item">
+                        localStorage: Empty
+                    </div>
+                    <div class="status-item">
+                        sessionStorage: Empty
+                    </div>
+                    <div class="status-item">
+                        Cookies: Cleared
+                    </div>
+                `;
+                
+                alert('✅ Session cleared successfully!\n\nNow:\n1. Click "Go to FarmConnect"\n2. Login as FARMER\n3. Try adding product');
+            }
+        }
+
+        function goToApp() {
+            window.location.href = 'http://localhost:5173';
+        }
+
+        // Check session on load
+        window.onload = checkSession;
+    </script>
+</body>
+</html>

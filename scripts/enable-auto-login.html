@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FarmConnect - Enable Auto-Login</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .button {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 15px;
+        }
+        
+        .btn-farmer {
+            background: #16a34a;
+            color: white;
+        }
+        
+        .btn-farmer:hover {
+            background: #15803d;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(22, 163, 74, 0.4);
+        }
+        
+        .btn-customer {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-customer:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn-disable {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-disable:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+        }
+        
+        .btn-open {
+            background: #8b5cf6;
+            color: white;
+        }
+        
+        .btn-open:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(139, 92, 246, 0.4);
+        }
+        
+        .status {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .status-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .info {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #1e40af;
+        }
+        
+        .success {
+            background: #dcfce7;
+            border-left: 4px solid #16a34a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #15803d;
+            display: none;
+        }
+        
+        .icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌾 FarmConnect Dev Tools</h1>
+        <p class="subtitle">Enable auto-login for faster development</p>
+        
+        <div class="status">
+            <div class="status-label">Current Status</div>
+            <div class="status-value" id="currentStatus">Not Set</div>
+        </div>
+        
+        <button class="button btn-farmer" onclick="enableFarmerLogin()">
+            <span class="icon">👨‍🌾</span>
+            Enable Farmer Auto-Login
+        </button>
+        
+        <button class="button btn-customer" onclick="enableCustomerLogin()">
+            <span class="icon">🛒</span>
+            Enable Customer Auto-Login
+        </button>
+        
+        <button class="button btn-disable" onclick="disableAutoLogin()">
+            <span class="icon">🚫</span>
+            Disable Auto-Login
+        </button>
+        
+        <button class="button btn-open" onclick="openApp()">
+            <span class="icon">🚀</span>
+            Open FarmConnect
+        </button>
+        
+        <div class="info">
+            <strong>ℹ️ How it works:</strong><br>
+            Click a button to set your preference. The app will remember it and auto-login on every refresh.
+        </div>
+        
+        <div class="success" id="successMessage">
+            ✅ Settings saved! Refresh the app to see changes.
+        </div>
+    </div>
+    
+    <script>
+        // Update status on load
+        function updateStatus() {
+            const status = localStorage.getItem('dev_auto_login');
+            const statusEl = document.getElementById('currentStatus');
+            
+            if (status === 'farmer') {
+                statusEl.textContent = '👨‍🌾 Farmer Auto-Login Enabled';
+                statusEl.style.color = '#16a34a';
+            } else if (status === 'customer') {
+                statusEl.textContent = '🛒 Customer Auto-Login Enabled';
+                statusEl.style.color = '#3b82f6';
+            } else {
+                statusEl.textContent = '🚫 Auto-Login Disabled';
+                statusEl.style.color = '#666';
+            }
+        }
+        
+        function showSuccess() {
+            const successEl = document.getElementById('successMessage');
+            successEl.style.display = 'block';
+            setTimeout(() => {
+                successEl.style.display = 'none';
+            }, 3000);
+        }
+        
+        function enableFarmerLogin() {
+            localStorage.setItem('dev_auto_login', 'farmer');
+            updateStatus();
+            showSuccess();
+        }
+        
+        function enableCustomerLogin() {
+            localStorage.setItem('dev_auto_login', 'customer');
+            updateStatus();
+            showSuccess();
+        }
+        
+        function disableAutoLogin() {
+            localStorage.removeItem('dev_auto_login');
+            updateStatus();
+            showSuccess();
+        }
+        
+        function openApp() {
+            window.open('http://localhost:5173', '_blank');
+        }
+        
+        // Update status on page load
+        updateStatus();
+    </script>
+</body>
+</html>

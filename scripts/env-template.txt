@@ -1,0 +1,38 @@
+# FarmConnect Environment Configuration
+# Copy this file to server/.env and update with your values
+
+# MongoDB Configuration
+# Option 1: Local MongoDB
+MONGODB_URI=mongodb://127.0.0.1:27017/farmconnect
+
+# Option 2: MongoDB Atlas (Cloud) - RECOMMENDED
+# MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/farmconnect?retryWrites=true&w=majority
+
+# MongoDB Connection Settings
+MONGO_TIMEOUT_MS=10000
+
+# JWT Secret (change in production)
+JWT_SECRET=dev-secret-change-me-in-production
+
+# OTP Settings
+OTP_TTL_SECONDS=300
+
+# Gmail SMTP Configuration (for OTP emails)
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-16-character-app-password
+SMTP_FROM=your-email@gmail.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+
+# Twilio Configuration (for SMS OTP - optional)
+TWILIO_ACCOUNT_SID=your-twilio-account-sid
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_PHONE_NUMBER=your-twilio-phone-number
+
+# Cloudinary Configuration (for image uploads - optional)
+CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
+
+# Server Configuration
+PORT=3001

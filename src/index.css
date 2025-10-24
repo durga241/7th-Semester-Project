@@ -1,0 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Farmer Market Connect Design System */
+
+@layer base {
+  :root {
+    /* Clean & Professional Color Palette */
+    --background: 120 25% 98%; /* Very light green tint */
+    --foreground: 120 10% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 120 10% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 120 10% 20%;
+
+    /* Soft Green Primary */
+    --primary: 120 40% 50%; /* Softer green */
+    --primary-foreground: 0 0% 100%;
+    --primary-dark: 120 40% 35%; /* Darker green */
+    
+    /* Warm Orange Accent */
+    --accent: 25 65% 55%; /* Warm orange */
+    --accent-foreground: 0 0% 100%;
+    --accent-dark: 25 65% 40%; /* Darker orange */
+
+    /* Neutral Grays with subtle green tint */
+    --secondary: 120 15% 96%;
+    --secondary-foreground: 120 10% 30%;
+
+    --muted: 120 20% 97%;
+    --muted-foreground: 120 8% 50%;
+
+    --success: 120 40% 50%;
+    --success-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 120 20% 90%;
+    --input: 120 20% 95%;
+    --ring: 120 40% 50%;
+
+    --radius: 0.75rem;
+
+    /* Clean Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(120, 40%, 50%), hsl(120, 40%, 35%));
+    --gradient-card: linear-gradient(145deg, hsl(0, 0%, 100%), hsl(120, 20%, 98%));
+    --gradient-accent: linear-gradient(135deg, hsl(25, 65%, 55%), hsl(25, 65%, 40%));
+    
+    /* Subtle Shadows */
+    --shadow-soft: 0 2px 15px hsl(120, 10%, 20% / 0.06);
+    --shadow-medium: 0 4px 25px hsl(120, 10%, 20% / 0.08);
+    --shadow-strong: 0 8px 35px hsl(120, 40%, 50% / 0.15);
+
+    /* Smooth Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  }
+}
+
+@layer components {
+  /* Clean Hero Button */
+  .btn-hero {
+    @apply bg-gradient-to-r from-primary to-primary-dark text-primary-foreground;
+    @apply px-6 py-3 rounded-lg font-medium text-base;
+    @apply shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-medium)];
+    @apply transition-[var(--transition-smooth)] hover:scale-[1.02];
+    @apply border-0;
+  }
+
+  /* Clean Accent Button */
+  .btn-accent {
+    @apply bg-gradient-to-r from-accent to-accent-dark text-accent-foreground;
+    @apply px-5 py-2.5 rounded-lg font-medium;
+    @apply shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-medium)];
+    @apply transition-[var(--transition-smooth)] hover:scale-[1.02];
+    @apply border-0;
+  }
+
+  /* Clean Card Component */
+  .card-gradient {
+    @apply bg-white shadow-[var(--shadow-soft)] hover:shadow-[var(--shadow-medium)];
+    @apply transition-[var(--transition-smooth)] border border-border/30;
+    @apply rounded-xl;
+  }
+
+  /* Clean Input Field */
+  .input-farm {
+    @apply bg-white border-border/40 focus:border-primary focus:ring-1 focus:ring-primary/20;
+    @apply transition-[var(--transition-smooth)] rounded-lg px-4 py-2.5;
+    @apply placeholder:text-muted-foreground text-sm;
+  }
+
+  /* Clean Hero Background */
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  /* Subtle Glass Effect */
+  .glass-effect {
+    @apply bg-white/90 backdrop-blur-sm border border-white/30;
+    @apply shadow-[var(--shadow-soft)];
+  }
+
+  /* Grocery App Animations */
+  .grocery-card-hover {
+    @apply transition-all duration-300 ease-in-out;
+    @apply hover:shadow-lg hover:scale-[1.02] hover:-translate-y-1;
+  }
+
+  .grocery-button-bounce {
+    @apply transition-all duration-200 ease-in-out;
+    @apply hover:scale-105 active:scale-95;
+  }
+
+  .grocery-slide-in {
+    @apply animate-in slide-in-from-bottom-4 duration-500;
+  }
+
+  .grocery-fade-in {
+    @apply animate-in fade-in duration-300;
+  }
+
+  /* Cart Animation */
+  .cart-bounce {
+    animation: cartBounce 0.6s ease-in-out;
+  }
+
+  @keyframes cartBounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0);
+    }
+    40% {
+      transform: translateY(-10px);
+    }
+    60% {
+      transform: translateY(-5px);
+    }
+  }
+
+  /* Search Suggestions Animation */
+  .search-suggestions {
+    @apply animate-in slide-in-from-top-2 duration-200;
+  }
+}

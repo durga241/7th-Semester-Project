@@ -1,0 +1,150 @@
+================================================================================
+                    STRIPE SANDBOX - QUICK REFERENCE CARD
+================================================================================
+
+🎯 QUICK START (Copy & Paste)
+================================================================================
+
+Terminal 1 - Backend:
+  cd server
+  npm start
+
+Terminal 2 - Frontend:
+  npm run dev
+
+Test URL: http://localhost:5173
+Test Card: 4242 4242 4242 4242 | 12/34 | 123
+
+================================================================================
+
+💳 TEST CARDS (All use Expiry: 12/34, CVC: 123)
+================================================================================
+
+✅ Success:           4242 4242 4242 4242
+🔐 3D Secure:         4000 0025 0000 3155  (Click "Complete")
+❌ Declined:          4000 0000 0000 0002
+💳 Insufficient:      4000 0000 0000 9995
+⏰ Expired:           4000 0000 0000 0069
+
+================================================================================
+
+🔍 WHAT TO LOOK FOR IN SERVER LOGS
+================================================================================
+
+✅ GOOD:
+  🔧 Stripe initialized in TEST mode
+  ✅ Order created: [id]
+  ✅ Stripe session created: [id]
+  ✅ Payment verified and order confirmed
+
+❌ BAD:
+  ❌ STRIPE_SECRET_KEY is not set
+  ❌ Create Stripe session error
+  ⚠️ WARNING: Using LIVE Stripe keys
+
+================================================================================
+
+🌐 IMPORTANT URLS
+================================================================================
+
+Your App:        http://localhost:5173
+Backend API:     http://localhost:3001
+Stripe Dashboard: https://dashboard.stripe.com/test/payments
+Success Page:    http://localhost:5173/payment-success
+Cancel Page:     http://localhost:5173/payment-cancel
+
+================================================================================
+
+✅ TESTING CHECKLIST
+================================================================================
+
+□ Server shows "TEST mode" on startup
+□ Can add product to cart
+□ Can proceed to checkout
+□ Redirects to Stripe page
+□ Can enter test card 4242...
+□ Payment completes
+□ Redirects to success page
+□ Order shows in database
+□ Product quantity decreased
+□ Payment in Stripe dashboard
+
+================================================================================
+
+🔧 TROUBLESHOOTING
+================================================================================
+
+Problem: Not redirecting after payment
+Fix: Check VITE_API_URL=http://localhost:3001 in .env
+
+Problem: "Authentication failed"
+Fix: Verify STRIPE_SECRET_KEY starts with sk_test_
+
+Problem: Order not updating
+Fix: Check MongoDB connection, verify product stock
+
+Problem: Shows LIVE mode
+Fix: Ensure STRIPE_SECRET_KEY starts with sk_test_, restart server
+
+================================================================================
+
+📊 VERIFY SUCCESS
+================================================================================
+
+1. Server logs show payment verified
+2. Success page displays with order details
+3. Order status = "confirmed" in database
+4. Payment status = "completed" in database
+5. Product quantity decreased
+6. Payment appears in Stripe dashboard (TEST mode)
+
+================================================================================
+
+🚀 PRODUCTION DEPLOYMENT
+================================================================================
+
+1. Get LIVE keys from Stripe dashboard
+2. Update .env:
+   STRIPE_PUBLISHABLE_KEY=pk_live_...
+   STRIPE_SECRET_KEY=sk_live_...
+3. Restart server (will show "LIVE mode")
+4. Test with real cards (small amounts)
+5. Setup webhooks
+6. Deploy!
+
+================================================================================
+
+📚 DOCUMENTATION FILES
+================================================================================
+
+Quick Start:     START_HERE_STRIPE.txt
+Sandbox Guide:   STRIPE_SANDBOX_TESTING.txt
+Full Guide:      STRIPE_INTEGRATION_GUIDE.txt
+Testing Guide:   STRIPE_TESTING_QUICK_START.txt
+Flow Diagram:    STRIPE_PAYMENT_FLOW.txt
+Checklist:       STRIPE_TESTING_CHECKLIST.txt
+This Card:       STRIPE_QUICK_REFERENCE.txt
+
+================================================================================
+
+💡 PRO TIPS
+================================================================================
+
+✓ Always check server logs for detailed info
+✓ Make sure you're in TEST mode in Stripe dashboard
+✓ Use test cards for development
+✓ Verify .env file has no extra spaces
+✓ Restart server after changing .env
+✓ Check browser console for frontend errors
+✓ Test all card scenarios before production
+
+================================================================================
+
+🎉 YOU'RE ALL SET!
+================================================================================
+
+Your Stripe sandbox is working and ready to test!
+
+Start now: cd server && npm start (then npm run dev in new terminal)
+
+================================================================================

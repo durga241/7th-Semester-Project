@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signup Endpoint Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            color: #333;
+            font-weight: 500;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            display: none;
+        }
+        .response.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        .response.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-indicator.online {
+            background: #28a745;
+        }
+        .status-indicator.offline {
+            background: #dc3545;
+        }
+        .server-status {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Signup Endpoint Tester</h1>
+        <p class="subtitle">Test /api/auth/signup without using the main app</p>
+        
+        <div id="serverStatus" class="server-status">
+            <span class="status-indicator offline"></span>
+            <span id="statusText">Checking server...</span>
+        </div>
+
+        <form id="signupForm">
+            <div class="form-group">
+                <label for="name">Name</label>
+                <input type="text" id="name" value="Test User" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" value="test@example.com" required>
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone (optional)</label>
+                <input type="tel" id="phone" value="1234567890">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" value="password123" required>
+            </div>
+
+            <div class="form-group">
+                <label for="role">Role</label>
+                <select id="role">
+                    <option value="customer">Customer</option>
+                    <option value="farmer">Farmer</option>
+                </select>
+            </div>
+
+            <button type="submit" id="submitBtn">
+                Test Signup
+            </button>
+        </form>
+
+        <div id="response" class="response"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3001';
+        const form = document.getElementById('signupForm');
+        const responseDiv = document.getElementById('response');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusIndicator = document.querySelector('.status-indicator');
+        const statusText = document.getElementById('statusText');
+
+        // Check server status on load
+        async function checkServer() {
+            try {
+                const res = await fetch(`${API_URL}/api/health`);
+                const data = await res.json();
+                
+                if (data.ok) {
+                    statusIndicator.classList.remove('offline');
+                    statusIndicator.classList.add('online');
+                    statusText.innerHTML = `Server Online (Port ${data.port}) | MongoDB: ${data.mongodb}`;
+                    submitBtn.disabled = false;
+                } else {
+                    throw new Error('Server not OK');
+                }
+            } catch (err) {
+                statusIndicator.classList.remove('online');
+                statusIndicator.classList.add('offline');
+                statusText.textContent = 'Server Offline - Start server first!';
+                submitBtn.disabled = true;
+                
+                showResponse('error', `Cannot connect to server at ${API_URL}\n\nError: ${err.message}\n\nMake sure the server is running:\ncd server && node index.js`);
+            }
+        }
+
+        checkServer();
+
+        // Handle form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const payload = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                password: document.getElementById('password').value,
+                role: document.getElementById('role').value
+            };
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Testing...';
+            responseDiv.className = 'response';
+            responseDiv.style.display = 'none';
+
+            try {
+                console.log('[TEST] Sending request:', payload);
+                
+                const response = await fetch(`${API_URL}/api/auth/signup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const contentType = response.headers.get('content-type');
+                console.log('[TEST] Response status:', response.status);
+                console.log('[TEST] Content-Type:', contentType);
+
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Server returned non-JSON response. Backend may not be running properly.');
+                }
+
+                const data = await response.json();
+                console.log('[TEST] Response data:', data);
+
+                if (response.ok && data.ok) {
+                    showResponse('success', 
+                        `✅ SIGNUP SUCCESSFUL!\n\n` +
+                        `Status: ${response.status}\n` +
+                        `Message: ${data.message}\n\n` +
+                        `User Data:\n${JSON.stringify(data.user, null, 2)}\n\n` +
+                        `The signup endpoint is working correctly!\n` +
+                        `If your app still fails, the issue is in the frontend.`
+                    );
+                } else {
+                    showResponse('error', 
+                        `❌ SIGNUP FAILED\n\n` +
+                        `Status: ${response.status}\n` +
+                        `Error: ${data.error || 'Unknown error'}\n\n` +
+                        `Response:\n${JSON.stringify(data, null, 2)}\n\n` +
+                        `Check server terminal for detailed logs.`
+                    );
+                }
+            } catch (err) {
+                console.error('[TEST] Error:', err);
+                showResponse('error', 
+                    `❌ REQUEST FAILED\n\n` +
+                    `Error: ${err.message}\n\n` +
+                    `This usually means:\n` +
+                    `1. Server is not running\n` +
+                    `2. Server crashed\n` +
+                    `3. CORS issue\n` +
+                    `4. Network error\n\n` +
+                    `Check the server terminal for errors.`
+                );
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Test Signup';
+            }
+        });
+
+        function showResponse(type, message) {
+            responseDiv.className = `response ${type}`;
+            responseDiv.textContent = message;
+            responseDiv.style.display = 'block';
+        }
+
+        // Auto-generate random email to avoid duplicates
+        document.getElementById('email').value = 'test-' + Date.now() + '@example.com';
+    </script>
+</body>
+</html>
