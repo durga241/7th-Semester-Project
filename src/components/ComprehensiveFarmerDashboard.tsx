@@ -10,8 +10,9 @@ import {
   MessageSquare, User, HelpCircle, Plus, Edit2, Trash2, Download,
   TrendingUp, IndianRupee, AlertCircle, Bell, Settings, LogOut,
   Eye, EyeOff, Calendar, MapPin, Phone, Mail, FileText, Upload, Send, Check,
-  Home, Star, Image, CreditCard, CheckCircle, XCircle, Clock, FileDown
+  Home, Star, Image, CreditCard, CheckCircle, XCircle, Clock, FileDown, Camera
 } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface ComprehensiveFarmerDashboardProps {
   userName: string;
@@ -26,7 +27,7 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
   setProducts,
   onLogout
 }) => {
-  const [activeSection, setActiveSection] = useState<'overview' | 'products' | 'orders' | 'analytics' | 'feedback' | 'payments'>('overview');
+  const [activeSection, setActiveSection] = useState<'overview' | 'products' | 'orders' | 'analytics' | 'feedback' | 'payments' | 'profile'>('overview');
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -46,7 +47,8 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
     isOrganic: false,
     isCertified: false,
     isSeasonal: false,
-    status: 'available' as 'available' | 'unavailable'
+    status: 'available' as 'available' | 'unavailable',
+    discount: '' as string | number // Empty by default - farmer must enter
   });
   const [notifications, setNotifications] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -55,9 +57,26 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
   const [editingStock, setEditingStock] = useState<string | null>(null);
   const [newStockValue, setNewStockValue] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: userName,
+    email: '',
+    phone: '',
+    profilePicture: ''
+  });
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
+  const [isUploadingProfileImage, setIsUploadingProfileImage] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    current: '',
+    new: '',
+    confirm: ''
+  });
+  const [lastOrderCount, setLastOrderCount] = useState(0);
+  const [hasPlayedInitialCheck, setHasPlayedInitialCheck] = useState(false);
   
   const notificationRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const lastOrderCountRef = useRef(0);
+  const hasPlayedInitialCheckRef = useRef(false);
 
   // Close notification panel when clicking outside
   useEffect(() => {
@@ -78,6 +97,130 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showNotifications, showUserMenu]);
+
+  // Fetch notifications from database
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('fc_jwt');
+      if (!token) return;
+
+      // Get farmer ID from JWT
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const farmerId = payload.uid;
+
+      const response = await fetch(`http://localhost:3001/api/notifications/farmer/${farmerId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.ok && data.notifications) {
+          console.log('[NOTIFICATIONS] Fetched', data.notifications.length, 'notifications');
+          
+          // Transform notifications to match UI format
+          const transformed = data.notifications.map((n: any) => ({
+            id: n._id,
+            type: n.type,
+            title: n.title,
+            message: n.message,
+            time: new Date(n.createdAt).toLocaleString(),
+            read: n.read,
+            metadata: n.metadata
+          }));
+          
+          setNotifications(transformed);
+        }
+      }
+    } catch (error) {
+      console.error('[NOTIFICATIONS] Error fetching notifications:', error);
+    }
+  };
+
+  // Mark notification as read
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      const token = localStorage.getItem('fc_jwt');
+      if (!token) return;
+
+      await fetch(`http://localhost:3001/api/notifications/${notificationId}/read`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Update local state
+      setNotifications(notifications.map(n => 
+        n.id === notificationId ? { ...n, read: true } : n
+      ));
+    } catch (error) {
+      console.error('[NOTIFICATIONS] Error marking as read:', error);
+    }
+  };
+
+  // Mark all notifications as read
+  const markAllNotificationsAsRead = async () => {
+    try {
+      const token = localStorage.getItem('fc_jwt');
+      if (!token) return;
+
+      // Get farmer ID from JWT
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const farmerId = payload.uid;
+
+      await fetch(`http://localhost:3001/api/notifications/farmer/${farmerId}/read-all`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Update local state
+      setNotifications(notifications.map(n => ({ ...n, read: true })));
+    } catch (error) {
+      console.error('[NOTIFICATIONS] Error marking all as read:', error);
+    }
+  };
+
+  // Fetch farmer profile on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('fc_jwt');
+        if (!token) return;
+
+        const response = await fetch('http://localhost:3001/api/user/profile', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.ok && data.user) {
+            setProfileData({
+              name: data.user.name || userName,
+              email: data.user.email || '',
+              phone: data.user.phone || '',
+              profilePicture: data.user.profilePicture || ''
+            });
+            if (data.user.profilePicture) {
+              setProfilePicturePreview(data.user.profilePicture);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[PROFILE] Error fetching profile:', error);
+      }
+    };
+
+    fetchProfile();
+    fetchNotifications(); // Fetch notifications on mount
+  }, [userName]);
 
   // Fetch orders on mount
   useEffect(() => {
@@ -117,6 +260,18 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
           
           console.log('[FARMER DASHBOARD] Transformed orders:', transformedOrders.length);
           setOrders(transformedOrders);
+          
+          // Set initial order count immediately
+          if (!hasPlayedInitialCheckRef.current) {
+            lastOrderCountRef.current = data.orders.length;
+            setLastOrderCount(data.orders.length);
+            // Enable notification after 5 seconds to avoid false positives
+            setTimeout(() => {
+              hasPlayedInitialCheckRef.current = true;
+              setHasPlayedInitialCheck(true);
+              console.log('[ORDER POLLING] Notification system enabled. Baseline:', data.orders.length, 'orders');
+            }, 5000);
+          }
         }
       } catch (error) {
         console.error('[FARMER DASHBOARD] Error fetching orders:', error);
@@ -124,6 +279,66 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
     };
 
     fetchOrders();
+    
+    // Set up polling for new orders after initial load
+    const orderPolling = setInterval(async () => {
+      try {
+        const token = localStorage.getItem('fc_jwt');
+        if (!token) return;
+        
+        const response = await fetch('http://localhost:3001/api/orders', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        const data = await response.json();
+        
+        if (data.ok && data.orders) {
+          const currentOrderCount = data.orders.length;
+          
+          // After initial check (5 seconds after login), check for new orders
+          if (hasPlayedInitialCheckRef.current && currentOrderCount > lastOrderCountRef.current) {
+            // New order detected!
+            const newOrdersCount = currentOrderCount - lastOrderCountRef.current;
+            console.log(`[NEW ORDER] ${newOrdersCount} new order(s) detected!`);
+            
+            // Play beep sound
+            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSp90O7YgzYJHmS66+OVUhELTKXh8bllHAU2jdXuw3EnBS17ye7aggYKEmK56+mjVhMNR5zd8sFhHwU1mNPvyYgzByt6x+/bi0MLJn/F8dPz');
+            audio.play().catch(e => console.log('Could not play notification sound:', e));
+            
+            // Fetch notifications from database (backend creates them automatically)
+            fetchNotifications();
+            setShowNotifications(true);
+            
+            // Update order count in both ref and state
+            lastOrderCountRef.current = currentOrderCount;
+            setLastOrderCount(currentOrderCount);
+            
+            // Refresh orders list
+            const transformedOrders = data.orders.map((order: any) => ({
+              id: order.orderId || order.id || order._id,
+              orderId: order.orderId || order.id || order._id,
+              displayOrderId: order.orderId || order.id || order._id,
+              customerName: order.customerName || order.customerId?.name || 'Customer',
+              status: order.status || 'Pending',
+              actualOrderId: order._id,
+              address: order.address || order.shippingAddress,
+              items: order.items || order.products || [],
+              products: order.products || order.items || [],
+              total: order.total || 0,
+              amount: order.total || 0,
+              feedback: order.feedback,
+              createdAt: order.createdAt || order.date || new Date().toISOString()
+            }));
+            setOrders(transformedOrders);
+          }
+        }
+      } catch (error) {
+        console.error('[ORDER POLLING] Error:', error);
+      }
+    }, 10000); // Check every 10 seconds
+    
+    return () => clearInterval(orderPolling);
   }, []);
 
   // Fetch products on mount
@@ -154,7 +369,8 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
             unit: 'kg',
             rating: 4.5,
             status: p.status || 'available',
-            description: p.description || ''
+            description: p.description || '',
+            discount: p.discount || 0
           }));
           setProducts(mappedProducts);
           console.log('[FARMER DASHBOARD] Products loaded:', mappedProducts.length);
@@ -375,6 +591,7 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
     { id: 'analytics', icon: BarChart3, label: 'Analytics & Insights', color: 'text-indigo-600' },
     { id: 'feedback', icon: Star, label: 'Customer Feedback', color: 'text-pink-600' },
     { id: 'payments', icon: CreditCard, label: 'Payments & Transactions', color: 'text-teal-600' },
+    { id: 'profile', icon: User, label: 'Edit Profile', color: 'text-blue-600' },
   ];
 
   // Auto-categorize crops
@@ -417,6 +634,7 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
         isOrganic: newProduct.isOrganic,
         isCertified: newProduct.isCertified,
         isSeasonal: newProduct.isSeasonal,
+        discount: Number(newProduct.discount) || 0,
         createdAt: editingProduct?.createdAt || new Date().toISOString()
       };
 
@@ -445,6 +663,11 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
         formData.append('category', newProduct.category || autoCategorize(newProduct.name));
         formData.append('status', newProduct.status || 'available');
         formData.append('visibility', 'visible');
+        
+        // IMPORTANT: Add discount field
+        const discountValue = Number(newProduct.discount) || 0;
+        formData.append('discount', discountValue.toString());
+        console.log('🏷️ [PRODUCT] Discount being sent:', discountValue);
         
         // Priority 1: Add image file if uploaded
         if (newProduct.image) {
@@ -590,7 +813,8 @@ Current localStorage role: ${userRole || 'unknown'}`);
         isOrganic: false,
         isCertified: false,
         isSeasonal: false,
-        status: 'available'
+        status: 'available',
+        discount: ''
       });
       setEditingProduct(null);
       setShowAddProduct(false);
@@ -621,7 +845,8 @@ Current localStorage role: ${userRole || 'unknown'}`);
       isOrganic: product.isOrganic || false,
       isCertified: product.isCertified || false,
       isSeasonal: product.isSeasonal || false,
-      status: product.status || 'available'
+      status: product.status || 'available',
+      discount: product.discount || 0
     });
     setShowAddProduct(true);
   };
@@ -670,12 +895,90 @@ Current localStorage role: ${userRole || 'unknown'}`);
   };
 
   // Toggle product availability
-  const toggleProductAvailability = (productId: string) => {
+  const toggleProductAvailability = async (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) {
+      console.error('[PRODUCT] Product not found:', productId);
+      return;
+    }
+
+    // Toggle the status
+    const newStatus = product.status === 'available' ? 'unavailable' : 'available';
+    const newVisibility = newStatus === 'available' ? 'visible' : 'hidden';
+    
+    // Get token from localStorage
+    const token = localStorage.getItem('fc_jwt');
+    
+    if (!token) {
+      alert('⚠️ Session expired. Please login again.');
+      onLogout();
+      return;
+    }
+
+    console.log(`[PRODUCT] Toggling product ${productId} from ${product.status} to ${newStatus}`);
+    console.log(`[PRODUCT] New visibility: ${newVisibility}`);
+    console.log(`[PRODUCT] Token exists: ${!!token}, Token length: ${token.length}`);
+
+    // Optimistically update UI
     setProducts(products.map(p => 
       p.id === productId 
-        ? { ...p, status: p.status === 'available' ? 'unavailable' : 'available' }
+        ? { ...p, status: newStatus, visibility: newVisibility }
         : p
     ));
+
+    try {
+      const response = await fetch(`http://localhost:3001/api/products/${productId}/visibility`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          visibility: newVisibility
+        })
+      });
+
+      console.log(`[PRODUCT] API Response status: ${response.status}`);
+      const data = await response.json();
+      console.log('[PRODUCT] API Response data:', data);
+
+      if (response.status === 401) {
+        // Token is invalid or expired
+        setProducts(products.map(p => 
+          p.id === productId 
+            ? { ...p, status: product.status, visibility: product.visibility }
+            : p
+        ));
+        alert('⚠️ Your session has expired. Please login again.');
+        onLogout();
+        return;
+      }
+
+      if (!response.ok || !data.ok) {
+        // Revert on error
+        setProducts(products.map(p => 
+          p.id === productId 
+            ? { ...p, status: product.status, visibility: product.visibility }
+            : p
+        ));
+        console.error('[PRODUCT] Failed to update product visibility:', data.error);
+        alert(`Failed to update product: ${data.error || 'Unknown error'}`);
+      } else {
+        console.log(`[PRODUCT] ✅ Product ${productId} visibility updated to ${newVisibility}`);
+        console.log('[PRODUCT] Product will now be', newStatus === 'unavailable' ? 'HIDDEN FROM' : 'VISIBLE ON', 'the customer home page');
+        
+        alert(`✅ Product ${newStatus === 'unavailable' ? 'is now HIDDEN from' : 'is now VISIBLE on'} the customer home page!\n\nCustomers will ${newStatus === 'unavailable' ? 'NOT' : ''} see this product when browsing.`);
+      }
+    } catch (error) {
+      console.error('[PRODUCT] Error updating product visibility:', error);
+      // Revert on error
+      setProducts(products.map(p => 
+        p.id === productId 
+          ? { ...p, status: product.status, visibility: product.visibility }
+          : p
+      ));
+      alert('Error updating product. Please try again.');
+    }
   };
 
   // Handle image upload
@@ -713,153 +1016,59 @@ Current localStorage role: ${userRole || 'unknown'}`);
       <div className="space-y-6">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <Card className="border-l-4 border-blue-500 shadow-md hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-blue-100 text-sm">Total Earnings</p>
-                  <h3 className="text-3xl font-bold mt-2">₹{stats.totalEarnings.toLocaleString()}</h3>
+                  <p className="text-gray-600 text-sm font-medium">Total Earnings</p>
+                  <h3 className="text-3xl font-bold mt-2 text-gray-900">₹{stats.totalEarnings.toLocaleString()}</h3>
                 </div>
-                <IndianRupee className="w-12 h-12 text-blue-200" />
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <IndianRupee className="w-6 h-6 text-blue-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+          <Card className="border-l-4 border-green-500 shadow-md hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-green-100 text-sm">Total Orders</p>
-                  <h3 className="text-3xl font-bold mt-2">{stats.totalOrders}</h3>
+                  <p className="text-gray-600 text-sm font-medium">Total Orders</p>
+                  <h3 className="text-3xl font-bold mt-2 text-gray-900">{stats.totalOrders}</h3>
                 </div>
-                <ShoppingCart className="w-12 h-12 text-green-200" />
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                  <ShoppingCart className="w-6 h-6 text-green-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
+          <Card className="border-l-4 border-purple-500 shadow-md hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-purple-100 text-sm">Total Products</p>
-                  <h3 className="text-3xl font-bold mt-2">{stats.totalProducts}</h3>
+                  <p className="text-gray-600 text-sm font-medium">Total Products</p>
+                  <h3 className="text-3xl font-bold mt-2 text-gray-900">{stats.totalProducts}</h3>
                 </div>
-                <Package className="w-12 h-12 text-purple-200" />
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                  <Package className="w-6 h-6 text-purple-600" />
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <Card className="border-l-4 border-orange-500 shadow-md hover:shadow-lg transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-orange-100 text-sm">Pending Orders</p>
-                  <h3 className="text-3xl font-bold mt-2">{stats.pendingOrders}</h3>
+                  <p className="text-gray-600 text-sm font-medium">Pending Orders</p>
+                  <h3 className="text-3xl font-bold mt-2 text-gray-900">{stats.pendingOrders}</h3>
                 </div>
-                <AlertCircle className="w-12 h-12 text-orange-200" />
+                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6 text-orange-600" />
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Top Selling Product & Low Stock Alerts */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-green-800">
-                <TrendingUp className="w-5 h-5 text-green-600" />
-                Top Selling Product
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {topSellingProduct ? (
-                <div className="flex items-center gap-4 p-4 bg-white rounded-lg shadow-sm">
-                  <div className="w-20 h-20 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl flex items-center justify-center overflow-hidden border-2 border-green-200">
-                    {topSellingProduct.image && /^https?:\/\//.test(topSellingProduct.image) ? (
-                      <img 
-                        src={topSellingProduct.image} 
-                        alt={topSellingProduct.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.parentElement!.innerHTML = '<div class="text-4xl">🌾</div>';
-                        }}
-                      />
-                    ) : (
-                      <div className="text-4xl">{topSellingProduct.image || '🌾'}</div>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-xl text-gray-900 mb-1">{topSellingProduct.name}</h3>
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl font-bold text-green-600">₹{topSellingProduct.price}</span>
-                      <span className="text-gray-500">/{topSellingProduct.unit}</span>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Stock: {topSellingProduct.stock || topSellingProduct.quantity} {topSellingProduct.unit}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-bold">
-                      #1 Seller
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 font-medium">No products yet</p>
-                  <p className="text-sm text-gray-400 mt-1">Add your first product to see it here</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-orange-800">
-                <AlertCircle className="w-5 h-5 text-orange-600" />
-                Low Stock Alerts
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {lowStockProducts.length > 0 ? (
-                <div className="space-y-3">
-                  {lowStockProducts.slice(0, 3).map(product => (
-                    <div key={product.id} className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm border-l-4 border-orange-400 hover:shadow-md transition-shadow">
-                      <div className="w-12 h-12 bg-gradient-to-br from-orange-100 to-amber-100 rounded-lg flex items-center justify-center overflow-hidden">
-                        {product.image && /^https?:\/\//.test(product.image) ? (
-                          <img 
-                            src={product.image} 
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                              e.currentTarget.parentElement!.innerHTML = '<div class="text-2xl">📦</div>';
-                            }}
-                          />
-                        ) : (
-                          <div className="text-2xl">{product.image || '📦'}</div>
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <span className="font-semibold text-gray-900 block">{product.name}</span>
-                        <span className="text-xs text-gray-500">₹{product.price}/{product.unit}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-orange-600 font-bold text-lg block">{product.stock || product.quantity}</span>
-                        <span className="text-xs text-orange-500">{product.unit} left</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
-                  <p className="text-gray-700 font-medium">All products in stock</p>
-                  <p className="text-sm text-gray-500 mt-1">Great job maintaining inventory!</p>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -880,8 +1089,8 @@ Current localStorage role: ${userRole || 'unknown'}`);
                 {recentOrders.map(order => (
                   <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
-                      <p className="font-semibold">{order.id} - {order.productName}</p>
-                      <p className="text-sm text-gray-600">{order.customerName} • {order.quantity}</p>
+                      <p className="font-semibold">{(order.displayOrderId || order.orderId || order.id).replace(/-/g, '').trim()} - {order.productName}</p>
+                      <p className="text-sm text-gray-600">{order.customerName} {order.quantity}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-green-600">₹{order.amount}</p>
@@ -911,7 +1120,8 @@ Current localStorage role: ${userRole || 'unknown'}`);
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            🌾 Product Management
+            <Package className="w-5 h-5 text-green-600" />
+            Product Management
             <span className="text-sm font-normal text-gray-500">
               ({products.filter(p => p.farmer === userName).length} products)
             </span>
@@ -1007,6 +1217,28 @@ Current localStorage role: ${userRole || 'unknown'}`);
                     value={newProduct.price}
                     onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
                   />
+                </div>
+
+                {/* Discount */}
+                <div className="bg-yellow-50 p-3 rounded-lg border-2 border-yellow-200">
+                  <Label className="font-semibold text-orange-700 flex items-center gap-2">
+                    <span className="text-lg">🏷️</span> Discount Percentage
+                  </Label>
+                  <Input 
+                    type="number" 
+                    placeholder="e.g., 10, 15, 20, 27..." 
+                    min="0"
+                    max="100"
+                    value={newProduct.discount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewProduct({...newProduct, discount: val === '' ? '' : Math.min(100, Math.max(0, Number(val)))});
+                    }}
+                    className="mt-2 border-orange-300 focus:border-orange-500"
+                  />
+                  <p className="text-xs text-orange-600 mt-1 font-medium">
+                    💡 Enter % OFF to attract customers! Leave empty for no discount.
+                  </p>
                 </div>
 
                 {/* Description */}
@@ -1143,7 +1375,7 @@ Current localStorage role: ${userRole || 'unknown'}`);
                     setNewProduct({
                       name: '', category: '', price: '', quantity: '', unit: 'kg',
                       description: '', image: null, imageUrl: '', isOrganic: false, 
-                      isCertified: false, isSeasonal: false, status: 'available'
+                      isCertified: false, isSeasonal: false, status: 'available', discount: ''
                     });
                   }}
                   className="flex-1"
@@ -1470,7 +1702,7 @@ Current localStorage role: ${userRole || 'unknown'}`);
               <tbody className="bg-white divide-y divide-gray-200">
                 {orders.map(order => (
                   <tr key={order.id}>
-                    <td className="px-4 py-4 whitespace-nowrap font-medium">{order.displayOrderId || order.orderId}</td>
+                    <td className="px-4 py-4 whitespace-nowrap font-medium">{order.displayOrderId || order.orderId || order._id}</td>
                     <td className="px-4 py-4">
                       {order.items && order.items.length > 0 ? (
                         <div className="space-y-1">
@@ -1578,45 +1810,121 @@ Current localStorage role: ${userRole || 'unknown'}`);
 
 
   // Render Analytics Section
-  const renderAnalytics = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BarChart3 className="w-6 h-6 text-indigo-600" />
-          Analytics & Insights
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-blue-50">
-              <CardContent className="p-4">
-                <p className="text-sm text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-blue-600">₹{stats.totalEarnings}</p>
-              </CardContent>
-            </Card>
-            <Card className="bg-green-50">
-              <CardContent className="p-4">
-                <p className="text-sm text-gray-600">Products Listed</p>
-                <p className="text-2xl font-bold text-green-600">{stats.totalProducts}</p>
-              </CardContent>
-            </Card>
-            <Card className="bg-purple-50">
-              <CardContent className="p-4">
-                <p className="text-sm text-gray-600">Orders Completed</p>
-                <p className="text-2xl font-bold text-purple-600">{stats.completedOrders}</p>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="text-center py-12 text-gray-500">
-            <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <p>Charts and graphs will be displayed here</p>
-            <p className="text-sm mt-2">Install Recharts for visual analytics</p>
-          </div>
+  const renderAnalytics = () => {
+    // Sample data for charts - you can replace with real data
+    const revenueData = [
+      { month: 'Jan', revenue: Math.floor(stats.totalEarnings * 0.1) },
+      { month: 'Feb', revenue: Math.floor(stats.totalEarnings * 0.12) },
+      { month: 'Mar', revenue: Math.floor(stats.totalEarnings * 0.15) },
+      { month: 'Apr', revenue: Math.floor(stats.totalEarnings * 0.18) },
+      { month: 'May', revenue: Math.floor(stats.totalEarnings * 0.2) },
+      { month: 'Jun', revenue: Math.floor(stats.totalEarnings * 0.25) }
+    ];
+
+    const orderStatusData = [
+      { name: 'Completed', value: stats.completedOrders, color: '#10b981' },
+      { name: 'Pending', value: stats.pendingOrders, color: '#f59e0b' },
+      { name: 'Processing', value: Math.max(0, stats.totalOrders - stats.completedOrders - stats.pendingOrders), color: '#3b82f6' }
+    ];
+
+    const topProductsData = myProducts.slice(0, 5).map(p => ({
+      name: p.name.substring(0, 15),
+      sales: Math.floor(Math.random() * 50) + 10
+    }));
+
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="bg-blue-50">
+            <CardContent className="p-4">
+              <p className="text-sm text-gray-600">Total Revenue</p>
+              <p className="text-2xl font-bold text-blue-600">₹{stats.totalEarnings.toLocaleString()}</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-green-50">
+            <CardContent className="p-4">
+              <p className="text-sm text-gray-600">Products Listed</p>
+              <p className="text-2xl font-bold text-green-600">{stats.totalProducts}</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-purple-50">
+            <CardContent className="p-4">
+              <p className="text-sm text-gray-600">Orders Completed</p>
+              <p className="text-2xl font-bold text-purple-600">{stats.completedOrders}</p>
+            </CardContent>
+          </Card>
         </div>
-      </CardContent>
-    </Card>
-  );
+
+        {/* Revenue Trend Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Revenue Trend</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={revenueData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => `₹${value}`} />
+                <Legend />
+                <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} name="Revenue (₹)" />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Order Status Distribution */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Order Status Distribution</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={orderStatusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {orderStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Top Products by Sales */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Top Products by Sales</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={topProductsData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="sales" fill="#10b981" name="Sales Count" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  };
 
   // Render Feedback Section
   const renderFeedback = () => (
@@ -1663,22 +1971,43 @@ Current localStorage role: ${userRole || 'unknown'}`);
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+        <Card className="border-l-4 border-green-500 shadow-md hover:shadow-lg transition-shadow">
           <CardContent className="p-6">
-            <p className="text-green-100 text-sm">Total Earnings</p>
-            <h3 className="text-3xl font-bold mt-2">₹{stats.totalEarnings.toLocaleString()}</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Total Earnings</p>
+                <h3 className="text-3xl font-bold mt-2 text-gray-900">₹{stats.totalEarnings.toLocaleString()}</h3>
+              </div>
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <IndianRupee className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+        <Card className="border-l-4 border-orange-500 shadow-md hover:shadow-lg transition-shadow">
           <CardContent className="p-6">
-            <p className="text-orange-100 text-sm">Pending Payments</p>
-            <h3 className="text-3xl font-bold mt-2">₹{pendingPayments.toLocaleString()}</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Pending Payments</p>
+                <h3 className="text-3xl font-bold mt-2 text-gray-900">₹{pendingPayments.toLocaleString()}</h3>
+              </div>
+              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
+                <Clock className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+        <Card className="border-l-4 border-blue-500 shadow-md hover:shadow-lg transition-shadow">
           <CardContent className="p-6">
-            <p className="text-blue-100 text-sm">Last Payment</p>
-            <h3 className="text-lg font-bold mt-2">{allTransactions.length > 0 ? allTransactions[0].date : 'N/A'}</h3>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium">Last Payment</p>
+                <h3 className="text-lg font-bold mt-2 text-gray-900">{allTransactions.length > 0 ? allTransactions[0].date : 'N/A'}</h3>
+              </div>
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -1738,6 +2067,276 @@ Current localStorage role: ${userRole || 'unknown'}`);
     </div>
   );
 
+  // Render Profile Section
+  const renderProfile = () => (
+    <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <User className="w-6 h-6 text-green-600" />
+            Edit Profile
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {/* Profile Picture Section */}
+            <div className="flex flex-col md:flex-row items-center gap-6 pb-6 border-b">
+              <div className="relative group">
+                {profilePicturePreview ? (
+                  <img 
+                    src={profilePicturePreview} 
+                    alt="Profile" 
+                    className="w-24 h-24 rounded-full object-cover border-4 border-green-100"
+                  />
+                ) : (
+                  <div className="w-24 h-24 bg-green-600 text-white rounded-full flex items-center justify-center text-4xl font-bold border-4 border-green-100">
+                    {userName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <label 
+                  htmlFor="farmer-profile-upload" 
+                  className="absolute bottom-0 right-0 bg-orange-500 hover:bg-orange-600 text-white rounded-full p-2 cursor-pointer shadow-lg transition-all transform hover:scale-110"
+                >
+                  <Camera className="w-4 h-4" />
+                  <input
+                    id="farmer-profile-upload"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+                        alert('Please upload a valid image file (JPG, PNG, or WebP)');
+                        return;
+                      }
+
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('Image size must be less than 5MB');
+                        return;
+                      }
+
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setProfilePicturePreview(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+
+                      setIsUploadingProfileImage(true);
+                      const token = localStorage.getItem('fc_jwt');
+                      if (!token) {
+                        alert('Please login to upload profile picture');
+                        setIsUploadingProfileImage(false);
+                        return;
+                      }
+
+                      try {
+                        const formData = new FormData();
+                        formData.append('profileImage', file);
+
+                        const response = await fetch('http://localhost:3001/api/user/profile-picture', {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${token}`
+                          },
+                          body: formData
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok && data.ok) {
+                          setProfilePicturePreview(data.profilePicture);
+                          setProfileData(prev => ({
+                            ...prev,
+                            profilePicture: data.profilePicture
+                          }));
+                          alert('Profile picture updated successfully');
+                        } else {
+                          throw new Error(data.error || 'Failed to upload image');
+                        }
+                      } catch (error: any) {
+                        alert('Failed to upload image. Please try again.');
+                        setProfilePicturePreview(profileData.profilePicture || null);
+                      } finally {
+                        setIsUploadingProfileImage(false);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </label>
+                {isUploadingProfileImage && (
+                  <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  </div>
+                )}
+              </div>
+              <div className="text-center md:text-left">
+                <h3 className="text-xl font-semibold">{userName}</h3>
+                <p className="text-sm text-gray-500">Farmer</p>
+                <p className="text-xs text-gray-400 mt-2">Click the camera icon to upload a new profile picture</p>
+              </div>
+            </div>
+
+            {/* Personal Information */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Personal Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="block text-sm font-medium mb-2">Full Name *</Label>
+                  <Input
+                    type="text"
+                    value={profileData.name}
+                    onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <Label className="block text-sm font-medium mb-2">Email Address *</Label>
+                  <Input
+                    type="email"
+                    value={profileData.email}
+                    onChange={(e) => setProfileData({...profileData, email: e.target.value})}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <Label className="block text-sm font-medium mb-2">Phone Number *</Label>
+                  <Input
+                    type="tel"
+                    value={profileData.phone}
+                    onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
+                    placeholder="+91 XXXXX XXXXX"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Change Password */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Change Password</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label className="block text-sm font-medium mb-2">Current Password</Label>
+                  <Input
+                    type="password"
+                    value={passwordData.current}
+                    onChange={(e) => setPasswordData({...passwordData, current: e.target.value})}
+                    placeholder="Enter current password"
+                    className="w-full"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="block text-sm font-medium mb-2">New Password</Label>
+                    <Input
+                      type="password"
+                      value={passwordData.new}
+                      onChange={(e) => setPasswordData({...passwordData, new: e.target.value})}
+                      placeholder="Enter new password"
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <Label className="block text-sm font-medium mb-2">Confirm Password</Label>
+                    <Input
+                      type="password"
+                      value={passwordData.confirm}
+                      onChange={(e) => setPasswordData({...passwordData, confirm: e.target.value})}
+                      placeholder="Confirm new password"
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-4 pt-4">
+              <Button 
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                onClick={async () => {
+                  const token = localStorage.getItem('fc_jwt');
+                  if (!token) {
+                    alert('Please login to update profile');
+                    return;
+                  }
+
+                  const passwordChanged = passwordData.current || passwordData.new || passwordData.confirm;
+                  
+                  if (passwordChanged) {
+                    if (!passwordData.current) {
+                      alert('Please enter current password');
+                      return;
+                    }
+                    if (passwordData.new !== passwordData.confirm) {
+                      alert('New passwords do not match');
+                      return;
+                    }
+                    if (passwordData.new.length < 6) {
+                      alert('Password must be at least 6 characters');
+                      return;
+                    }
+                  }
+                  
+                  try {
+                    const profileResponse = await fetch('http://localhost:3001/api/user/profile', {
+                      method: 'PUT',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: JSON.stringify({
+                        name: profileData.name,
+                        email: profileData.email,
+                        phone: profileData.phone
+                      })
+                    });
+
+                    const profileResult = await profileResponse.json();
+                    
+                    if (!profileResponse.ok) {
+                      alert(profileResult.error || 'Failed to update profile');
+                      return;
+                    }
+
+                    if (passwordChanged) {
+                      const passwordResponse = await fetch('http://localhost:3001/api/user/change-password', {
+                        method: 'PUT',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                          currentPassword: passwordData.current,
+                          newPassword: passwordData.new
+                        })
+                      });
+
+                      const passwordResult = await passwordResponse.json();
+                      
+                      if (!passwordResponse.ok) {
+                        alert(passwordResult.error || 'Failed to change password');
+                        return;
+                      }
+                    }
+
+                    alert('Profile updated successfully!');
+                    setPasswordData({ current: '', new: '', confirm: '' });
+                  } catch (error) {
+                    console.error('[PROFILE] Error saving:', error);
+                    alert('Failed to update profile');
+                  }
+                }}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+  );
+
   // Render content based on active section
   const renderContent = () => {
     switch (activeSection) {
@@ -1747,6 +2346,7 @@ Current localStorage role: ${userRole || 'unknown'}`);
       case 'analytics': return renderAnalytics();
       case 'feedback': return renderFeedback();
       case 'payments': return renderPayments();
+      case 'profile': return renderProfile();
       default: return renderOverview();
     }
   };
@@ -1838,9 +2438,7 @@ Current localStorage role: ${userRole || 'unknown'}`);
                         size="sm" 
                         variant="ghost" 
                         className="text-white hover:bg-white/20"
-                        onClick={() => {
-                          setNotifications(notifications.map(n => ({ ...n, read: true })));
-                        }}
+                        onClick={markAllNotificationsAsRead}
                       >
                         Mark all read
                       </Button>
@@ -1860,11 +2458,7 @@ Current localStorage role: ${userRole || 'unknown'}`);
                             className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
                               !notification.read ? 'bg-blue-50' : ''
                             }`}
-                            onClick={() => {
-                              setNotifications(notifications.map(n => 
-                                n.id === notification.id ? { ...n, read: true } : n
-                              ));
-                            }}
+                            onClick={() => markNotificationAsRead(notification.id)}
                           >
                             <div className="flex items-start gap-3">
                               {/* Icon based on type */}
@@ -1926,25 +2520,56 @@ Current localStorage role: ${userRole || 'unknown'}`);
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-lg hover:bg-green-700 transition-colors"
+                  className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-green-600 transition-all"
                 >
-                  {userName.charAt(0).toUpperCase()}
+                  {profilePicturePreview || profileData.profilePicture ? (
+                    <img 
+                      src={profilePicturePreview || profileData.profilePicture} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-green-600 flex items-center justify-center text-white font-bold text-lg">
+                      {userName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                 </button>
 
                 {/* User Dropdown Menu */}
                 {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                    {/* Logout Only */}
-                    <div className="p-2">
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-[100] overflow-hidden">
+                    {/* User Info Header */}
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <div className="flex items-center gap-3">
+                        {profilePicturePreview || profileData.profilePicture ? (
+                          <img 
+                            src={profilePicturePreview || profileData.profilePicture} 
+                            alt="Profile" 
+                            className="w-10 h-10 rounded-full object-cover border-2 border-green-200"
+                          />
+                        ) : (
+                          <div className="bg-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-semibold text-lg">
+                            {userName.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm">{userName}</p>
+                          <p className="text-xs text-gray-500">Farmer</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Logout Button */}
+                    <div className="border-t border-gray-100 py-1">
                       <button
                         onClick={() => {
                           setShowUserMenu(false);
                           onLogout();
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-red-50 rounded-lg transition-colors text-red-600"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-red-50 transition-colors text-red-600 font-medium group"
                       >
-                        <LogOut className="w-5 h-5" />
-                        <span className="text-sm font-medium">Logout</span>
+                        <LogOut className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                        <span className="text-sm">Logout</span>
                       </button>
                     </div>
                   </div>

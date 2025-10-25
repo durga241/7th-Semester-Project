@@ -24,6 +24,7 @@ export interface Product {
   category: string;
   farmerId: string | { _id: string; name: string; email: string }; // Can be ObjectId or populated object
   imageUrl?: string;
+  discount?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -41,6 +42,7 @@ export interface FrontendProduct {
   stock: number;
   rating: number;
   description: string;
+  discount?: number;
 }
 
 // Convert backend product to frontend format
@@ -56,6 +58,17 @@ const convertToFrontendProduct = (product: Product): FrontendProduct => {
     ? product.farmerId.name 
     : 'Unknown Farmer';
   
+  // Debug discount conversion
+  const discountValue = product.discount || 0;
+  if (product.title === 'BlackGram' || product.title === 'Groundnut Oil' || product.title === 'Maida') {
+    console.log(`📦 [CONVERT] ${product.title}:`, {
+      backendDiscount: product.discount,
+      backendType: typeof product.discount,
+      convertedDiscount: discountValue,
+      convertedType: typeof discountValue
+    });
+  }
+  
   return {
     id: product._id,
     name: product.title,
@@ -67,7 +80,8 @@ const convertToFrontendProduct = (product: Product): FrontendProduct => {
     image: imageUrl,
     stock: product.quantity,
     rating: 4.5, // Default rating
-    description: product.description
+    description: product.description,
+    discount: discountValue
   };
 };
 
@@ -88,8 +102,13 @@ export const fetchProducts = async (category?: string): Promise<FrontendProduct[
       return [];
     }
     
-    console.log(`[PRODUCTS] Fetched ${data.products?.length || 0} products`);
-    return (data.products || []).map(convertToFrontendProduct);
+    console.log(`[PRODUCTS] Fetched ${data.products?.length || 0} products from backend`);
+    console.log('[PRODUCTS] Raw backend response:', data.products);
+    
+    const converted = (data.products || []).map(convertToFrontendProduct);
+    console.log('[PRODUCTS] Converted products:', converted);
+    
+    return converted;
   } catch (error: any) {
     console.error('[PRODUCTS] Error fetching products:', error);
     return [];

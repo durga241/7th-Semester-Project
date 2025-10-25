@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { calculateDiscountedPrice, getEffectivePrice } from '@/lib/priceUtils';
 
 interface Product {
   id: string;
@@ -21,6 +22,7 @@ interface Product {
   image: string;
   description: string;
   stock: number;
+  discount?: number;
 }
 
 interface CartItem extends Product {
@@ -94,7 +96,8 @@ const ModernCustomerDashboard = ({ customer, onLogout }: ModernCustomerDashboard
           rating: p.rating || 4.5,
           image: p.image,
           description: p.description || `Fresh ${p.name}`,
-          stock: p.stock || 0
+          stock: p.stock || 0,
+          discount: p.discount || 0
         }));
         setAllProducts(mapped);
         console.log('[CUSTOMER] Loaded products:', mapped.length);
@@ -182,7 +185,10 @@ const ModernCustomerDashboard = ({ customer, onLogout }: ModernCustomerDashboard
   };
 
   const getTotalAmount = () => {
-    return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cart.reduce((total, item) => {
+      const effectivePrice = getEffectivePrice(item.price, item.discount);
+      return total + (effectivePrice * item.quantity);
+    }, 0);
   };
 
   const getTotalItems = () => {
@@ -348,8 +354,23 @@ const ModernCustomerDashboard = ({ customer, onLogout }: ModernCustomerDashboard
                   </div>
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <span className="text-2xl font-bold text-green-600">₹{product.price}</span>
-                      <span className="text-sm text-gray-500">/{product.unit}</span>
+                      {product.discount && product.discount > 0 ? (
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg text-gray-400 line-through">₹{product.price}</span>
+                            <span className="text-xs bg-red-500 text-white px-2 py-1 rounded">{product.discount}% OFF</span>
+                          </div>
+                          <div>
+                            <span className="text-2xl font-bold text-green-600">₹{getEffectivePrice(product.price, product.discount).toFixed(2)}</span>
+                            <span className="text-sm text-gray-500">/{product.unit}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="text-2xl font-bold text-green-600">₹{product.price}</span>
+                          <span className="text-sm text-gray-500">/{product.unit}</span>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => {
@@ -525,7 +546,17 @@ const ModernCustomerDashboard = ({ customer, onLogout }: ModernCustomerDashboard
                     <div className="flex-1">
                       <h3 className="font-bold text-lg">{item.name}</h3>
                       <p className="text-gray-600 text-sm">By {item.farmer}</p>
-                      <p className="text-green-600 font-bold mt-1">₹{item.price}/{item.unit}</p>
+                      <div className="mt-1">
+                        {item.discount && item.discount > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 line-through text-sm">₹{item.price}</span>
+                            <span className="text-green-600 font-bold">₹{getEffectivePrice(item.price, item.discount).toFixed(2)}/{item.unit}</span>
+                            <span className="text-xs bg-red-500 text-white px-2 py-0.5 rounded">{item.discount}% OFF</span>
+                          </div>
+                        ) : (
+                          <p className="text-green-600 font-bold">₹{item.price}/{item.unit}</p>
+                        )}
+                      </div>
                     </div>
                     
                     {/* Quantity Controls */}
@@ -550,7 +581,7 @@ const ModernCustomerDashboard = ({ customer, onLogout }: ModernCustomerDashboard
                     
                     {/* Total Price */}
                     <div className="text-right">
-                      <p className="font-bold text-lg">₹{(item.price * item.quantity).toFixed(2)}</p>
+                      <p className="font-bold text-lg">₹{(getEffectivePrice(item.price, item.discount) * item.quantity).toFixed(2)}</p>
                       <Button
                         size="sm"
                         variant="ghost"

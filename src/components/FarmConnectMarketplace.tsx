@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, ShoppingCart, User, ChevronLeft, ChevronRight, Heart, Menu, X, UserCircle, Star } from 'lucide-react';
+import { Search, ShoppingCart, User, ChevronLeft, ChevronRight, Heart, Menu, X, UserCircle, Star, ShoppingBag, LogOut, Camera, Upload, Trash2, AlertTriangle, Sprout } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import banner1 from '../assets/depositphotos_428702092-stock-photo-assortment-fresh-organic-vegetables-fruits.jpg';
 import banner2 from '../assets/Screenshot 2025-10-20 114953.png';
@@ -16,6 +16,7 @@ import FarmerAuthModal from './FarmerAuthModal';
 
 interface Product {
   id: number;
+  _id?: string;
   name: string;
   price: number;
   farmer: string;
@@ -23,6 +24,7 @@ interface Product {
   image: string;
   stock: number;
   rating: number;
+  discount?: number;
 }
 
 const FarmConnectMarketplace = () => {
@@ -61,13 +63,25 @@ const FarmConnectMarketplace = () => {
   const [profileData, setProfileData] = useState({
     name: userName,
     email: userName + '@example.com',
-    phone: ''
+    phone: '',
+    profilePicture: ''
   });
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [passwordData, setPasswordData] = useState({
     current: '',
     new: '',
     confirm: ''
   });
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    message: ''
+  });
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const { toast } = useToast();
 
   // Fetch user profile from database
@@ -89,8 +103,12 @@ const FarmConnectMarketplace = () => {
             setProfileData({
               name: data.user.name || userName,
               email: data.user.email || '',
-              phone: data.user.phone || ''
+              phone: data.user.phone || '',
+              profilePicture: data.user.profilePicture || ''
             });
+            if (data.user.profilePicture) {
+              setProfilePicturePreview(data.user.profilePicture);
+            }
           }
         }
       } catch (error) {
@@ -249,7 +267,7 @@ const FarmConnectMarketplace = () => {
         const mappedProducts = data.products.map((p: any) => {
           // Get farmer name from populated farmerId or use default
           const farmerName = p.farmerId?.name || p.farmerName || userName || 'Farmer';
-          console.log('[PRODUCT]', p.title, '- Farmer:', farmerName, '- Image:', p.imageUrl);
+          console.log('[PRODUCT]', p.title, '- Farmer:', farmerName, '- Discount:', p.discount, '- Image:', p.imageUrl);
           return {
             id: p._id,
             name: p.title,
@@ -259,7 +277,8 @@ const FarmConnectMarketplace = () => {
             image: p.imageUrl || '🌾',
             stock: p.quantity || p.stock || 100,
             rating: 4.5,
-            status: p.status || 'available'
+            status: p.status || 'available',
+            discount: p.discount || 0  // ✅ ADD DISCOUNT FIELD!
           };
         });
         console.log('[PRODUCTS] Mapped products:', mappedProducts.length);
@@ -297,6 +316,140 @@ const FarmConnectMarketplace = () => {
     setShowFarmerAuth(false);
     setActiveSection('home');
     toast({ title: `Welcome ${name}!` });
+  };
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingContact(true);
+
+    try {
+      // Validate form
+      if (!contactForm.name || !contactForm.email || !contactForm.phone || !contactForm.message) {
+        toast({
+          title: 'Missing Fields',
+          description: 'Please fill in all fields',
+          variant: 'destructive'
+        });
+        setIsSubmittingContact(false);
+        return;
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(contactForm.email)) {
+        toast({
+          title: 'Invalid Email',
+          description: 'Please enter a valid email address',
+          variant: 'destructive'
+        });
+        setIsSubmittingContact(false);
+        return;
+      }
+
+      const response = await fetch('http://localhost:3001/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(contactForm)
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast({
+          title: '✅ Message Sent!',
+          description: data.message || 'We will get back to you soon.'
+        });
+
+        // Clear form
+        setContactForm({
+          name: '',
+          email: '',
+          phone: '',
+          message: ''
+        });
+      } else {
+        throw new Error(data.message || 'Failed to send message');
+      }
+    } catch (error) {
+      console.error('Contact form error:', error);
+      toast({
+        title: 'Failed to Send',
+        description: error instanceof Error ? error.message : 'Please try again later',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSubmittingContact(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    
+    try {
+      const token = localStorage.getItem('fc_jwt');
+      if (!token) {
+        toast({
+          title: 'Error',
+          description: 'Please login to delete account',
+          variant: 'destructive'
+        });
+        setIsDeletingAccount(false);
+        setShowDeleteConfirm(false);
+        return;
+      }
+
+      const response = await fetch('http://localhost:3001/api/user/account', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.ok) {
+        // Clear all local storage
+        localStorage.removeItem('fc_jwt');
+        localStorage.removeItem('farmconnect_userRole');
+        localStorage.removeItem('farmconnect_userName');
+        localStorage.removeItem('fc_cart');
+
+        // Reset state
+        setUserRole(null);
+        setUserName('');
+        setCart({});
+        
+        // Show success message
+        toast({
+          title: 'Account Deleted Successfully',
+          description: 'Your account has been permanently deleted',
+          duration: 3000
+        });
+
+        // Close dialog
+        setShowDeleteConfirm(false);
+
+        // Redirect to home after 2 seconds
+        setTimeout(() => {
+          setActiveView('home');
+          setActiveSection('home');
+          navigate('/');
+        }, 2000);
+      } else {
+        throw new Error(data.error || 'Failed to delete account');
+      }
+    } catch (error) {
+      console.error('Delete account error:', error);
+      toast({
+        title: 'Failed to Delete Account',
+        description: error instanceof Error ? error.message : 'Please try again later',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   const addToCart = (product: Product, quantity: number = 1) => {
@@ -434,9 +587,17 @@ const FarmConnectMarketplace = () => {
                 <div className="relative">
                   <button
                     onClick={() => setShowUserDropdown(!showUserDropdown)}
-                    className="bg-green-600 hover:bg-green-700 text-white rounded-full w-10 h-10 flex items-center justify-center transition-all font-semibold text-lg shadow-md"
+                    className="bg-green-600 hover:bg-green-700 text-white rounded-full w-10 h-10 flex items-center justify-center transition-all font-semibold text-lg shadow-md overflow-hidden"
                   >
-                    {userRole ? userName.charAt(0).toUpperCase() : <User className="w-5 h-5" />}
+                    {userRole ? (
+                      profilePicturePreview ? (
+                        <img src={profilePicturePreview} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        userName.charAt(0).toUpperCase()
+                      )
+                    ) : (
+                      <User className="w-5 h-5" />
+                    )}
                   </button>
                 {showUserDropdown && (
                   <>
@@ -451,9 +612,17 @@ const FarmConnectMarketplace = () => {
                           {/* User Info Header */}
                           <div className="px-4 py-3 border-b border-gray-100">
                             <div className="flex items-center gap-3">
-                              <div className="bg-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-semibold text-lg">
-                                {userName.charAt(0).toUpperCase()}
-                              </div>
+                              {profilePicturePreview ? (
+                                <img 
+                                  src={profilePicturePreview} 
+                                  alt="Profile" 
+                                  className="w-10 h-10 rounded-full object-cover border-2 border-green-200"
+                                />
+                              ) : (
+                                <div className="bg-green-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-semibold text-lg">
+                                  {userName.charAt(0).toUpperCase()}
+                                </div>
+                              )}
                               <div>
                                 <p className="font-semibold text-gray-900 text-sm">{userName}</p>
                                 <p className="text-xs text-gray-500 capitalize">{userRole}</p>
@@ -471,7 +640,7 @@ const FarmConnectMarketplace = () => {
                               }}
                               className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3 group"
                             >
-                              <span className="text-lg group-hover:scale-110 transition-transform">🛒</span>
+                              <ShoppingBag className="w-5 h-5 text-gray-600 group-hover:text-green-600 transition-colors" />
                               <span className="text-gray-700 text-sm font-medium">My Orders</span>
                             </button>
                             <button
@@ -482,7 +651,7 @@ const FarmConnectMarketplace = () => {
                               }}
                               className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3 group"
                             >
-                              <span className="text-lg group-hover:scale-110 transition-transform">💚</span>
+                              <Heart className="w-5 h-5 text-gray-600 group-hover:text-red-500 transition-colors" />
                               <span className="text-gray-700 text-sm font-medium">Wishlist</span>
                             </button>
                             <button
@@ -493,7 +662,7 @@ const FarmConnectMarketplace = () => {
                               }}
                               className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3 group"
                             >
-                              <span className="text-lg group-hover:scale-110 transition-transform">✏️</span>
+                              <User className="w-5 h-5 text-gray-600 group-hover:text-blue-600 transition-colors" />
                               <span className="text-gray-700 text-sm font-medium">Edit Profile</span>
                             </button>
                           </div>
@@ -507,7 +676,7 @@ const FarmConnectMarketplace = () => {
                               }}
                               className="w-full text-left px-4 py-2.5 text-red-600 hover:bg-red-50 transition-colors flex items-center gap-3 group"
                             >
-                              <span className="text-lg group-hover:scale-110 transition-transform">🚪</span>
+                              <LogOut className="w-5 h-5 text-red-600 group-hover:text-red-700 transition-colors" />
                               <span className="font-medium text-sm">Logout</span>
                             </button>
                           </div>
@@ -519,22 +688,22 @@ const FarmConnectMarketplace = () => {
                           </div>
                           <button
                             onClick={() => {
-                              setShowUserDropdown(false);
                               setShowFarmerAuth(true);
+                              setShowUserDropdown(false);
                             }}
-                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3"
+                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3 group"
                           >
-                            <span className="text-lg">👨‍🌾</span>
+                            <Sprout className="w-5 h-5 text-green-600 group-hover:text-green-700" />
                             <span className="text-gray-700 text-sm font-medium">Farmer Login</span>
                           </button>
                           <button
                             onClick={() => {
-                              setShowUserDropdown(false);
                               setShowCustomerLogin(true);
+                              setShowUserDropdown(false);
                             }}
-                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3"
+                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors flex items-center gap-3 group"
                           >
-                            <span className="text-lg">👤</span>
+                            <User className="w-5 h-5 text-blue-600 group-hover:text-blue-700" />
                             <span className="text-gray-700 text-sm font-medium">Customer Login</span>
                           </button>
                         </>
@@ -836,7 +1005,7 @@ const FarmConnectMarketplace = () => {
             <Card key={product.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-4">
                 {/* Product Image */}
-                <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center mb-4 overflow-hidden">
+                <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center mb-4 overflow-hidden relative">
                   {product.image && (product.image.startsWith('http://') || product.image.startsWith('https://') || product.image.startsWith('/')) ? (
                     <img 
                       src={product.image.startsWith('/') ? `http://localhost:3001${product.image}` : product.image}
@@ -850,19 +1019,43 @@ const FarmConnectMarketplace = () => {
                   ) : (
                     <div className="text-6xl">{product.image || '🌾'}</div>
                   )}
+                  {/* Discount Badge */}
+                  {product.discount && product.discount > 0 && (
+                    <div className="absolute top-2 left-2 bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-lg z-10">
+                      {product.discount}% OFF
+                    </div>
+                  )}
                 </div>
 
                 {/* Product Info */}
                 <h3 className="font-bold text-lg mb-1">{product.name}</h3>
                 <p className="text-sm text-gray-600 mb-2">By {product.farmer}</p>
                 
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <span className="text-2xl font-bold text-green-600">₹{product.price}</span>
-                    <span className="text-sm text-gray-500">/kg</span>
+                {/* Discount Display */}
+                {product.discount && product.discount > 0 ? (
+                  <div className="mb-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm text-gray-400 line-through">₹{product.price}/kg</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-2xl font-bold text-green-600">
+                          ₹{Math.round(product.price * (1 - product.discount / 100))}
+                        </span>
+                        <span className="text-sm text-gray-500">/kg</span>
+                      </div>
+                      <span className="text-xs text-gray-500">Stock: {product.stock} kg</span>
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-500">Stock: {product.stock} kg</span>
-                </div>
+                ) : (
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="text-2xl font-bold text-green-600">₹{product.price}</span>
+                      <span className="text-sm text-gray-500">/kg</span>
+                    </div>
+                    <span className="text-xs text-gray-500">Stock: {product.stock} kg</span>
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex items-center justify-between">
@@ -933,7 +1126,7 @@ const FarmConnectMarketplace = () => {
             {filteredProducts.map(product => (
               <Card key={product.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-4">
-                  <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center mb-4 overflow-hidden">
+                  <div className="w-full h-48 bg-gray-100 rounded-lg flex items-center justify-center mb-4 overflow-hidden relative">
                     {product.image && (product.image.startsWith('http://') || product.image.startsWith('https://') || product.image.startsWith('/')) ? (
                       <img 
                         src={product.image.startsWith('/') ? `http://localhost:3001${product.image}` : product.image}
@@ -947,16 +1140,41 @@ const FarmConnectMarketplace = () => {
                     ) : (
                       <div className="text-6xl">{product.image || '🌾'}</div>
                     )}
+                    {/* Discount Badge */}
+                    {product.discount && product.discount > 0 && (
+                      <div className="absolute top-2 left-2 bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-lg z-10">
+                        {product.discount}% OFF
+                      </div>
+                    )}
                   </div>
                   <h3 className="font-bold text-lg mb-1">{product.name}</h3>
                   <p className="text-sm text-gray-600 mb-2">By {product.farmer}</p>
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <span className="text-2xl font-bold text-green-600">₹{product.price}</span>
-                      <span className="text-sm text-gray-500">/kg</span>
+                  
+                  {/* Discount Display */}
+                  {product.discount && product.discount > 0 ? (
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm text-gray-400 line-through">₹{product.price}/kg</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-2xl font-bold text-green-600">
+                            ₹{Math.round(product.price * (1 - product.discount / 100))}
+                          </span>
+                          <span className="text-sm text-gray-500">/kg</span>
+                        </div>
+                        <span className="text-xs text-gray-500">Stock: {product.stock} kg</span>
+                      </div>
                     </div>
-                    <span className="text-xs text-gray-500">Stock: {product.stock} kg</span>
-                  </div>
+                  ) : (
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <span className="text-2xl font-bold text-green-600">₹{product.price}</span>
+                        <span className="text-sm text-gray-500">/kg</span>
+                      </div>
+                      <span className="text-xs text-gray-500">Stock: {product.stock} kg</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <button 
                       onClick={() => {
@@ -1010,18 +1228,38 @@ const FarmConnectMarketplace = () => {
             {/* Contact Form */}
             <Card className="p-8">
               <h3 className="text-2xl font-bold mb-6">Send us a message</h3>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleContactSubmit}>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                  <Input placeholder="Your name" className="w-full" />
+                  <Input 
+                    placeholder="Your name" 
+                    className="w-full" 
+                    value={contactForm.name}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <Input type="email" placeholder="your@email.com" className="w-full" />
+                  <Input 
+                    type="email" 
+                    placeholder="your@email.com" 
+                    className="w-full" 
+                    value={contactForm.email}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                  <Input type="tel" placeholder="+91 9876543210" className="w-full" />
+                  <Input 
+                    type="tel" 
+                    placeholder="+91 9876543210" 
+                    className="w-full" 
+                    value={contactForm.phone}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, phone: e.target.value }))}
+                    required
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
@@ -1029,10 +1267,17 @@ const FarmConnectMarketplace = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                     rows={4}
                     placeholder="How can we help you?"
+                    value={contactForm.message}
+                    onChange={(e) => setContactForm(prev => ({ ...prev, message: e.target.value }))}
+                    required
                   ></textarea>
                 </div>
-                <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
-                  Send Message
+                <Button 
+                  type="submit" 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  disabled={isSubmittingContact}
+                >
+                  {isSubmittingContact ? 'Sending...' : 'Send Message'}
                 </Button>
               </form>
             </Card>
@@ -1141,8 +1386,9 @@ const FarmConnectMarketplace = () => {
                   <p className="text-sm mb-4">Add items to get started</p>
                   <button
                     onClick={() => {
-                      setShowCart(false);
+                      setActiveView('home');
                       setActiveSection('products');
+                      navigate('/products');
                     }}
                     className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg transition-colors"
                   >
@@ -1171,6 +1417,14 @@ const FarmConnectMarketplace = () => {
                       <div className="flex-1">
                         <h3 className="font-semibold text-sm">{item.product.name}</h3>
                         <p className="text-xs text-gray-500 mb-2">By {item.product.farmer}</p>
+                        {item.product.discount && item.product.discount > 0 && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded font-bold">
+                              {item.product.discount}% OFF
+                            </span>
+                            <span className="text-xs text-gray-400 line-through">₹{item.product.price}/kg</span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <button
@@ -1206,7 +1460,14 @@ const FarmConnectMarketplace = () => {
                             </button>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-orange-600">₹{item.product.price * item.quantity}</p>
+                            {item.product.discount && item.product.discount > 0 ? (
+                              <div>
+                                <p className="font-bold text-green-600">₹{Math.round(item.product.price * (1 - item.product.discount / 100) * item.quantity)}</p>
+                                <p className="text-xs text-gray-400 line-through">₹{item.product.price * item.quantity}</p>
+                              </div>
+                            ) : (
+                              <p className="font-bold text-orange-600">₹{item.product.price * item.quantity}</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1221,10 +1482,27 @@ const FarmConnectMarketplace = () => {
               <div className="border-t p-4 bg-gray-50">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-lg font-semibold">Total:</span>
-                  <span className="text-2xl font-bold text-orange-600">
-                    ₹{Object.values(cart).reduce((sum, item) => sum + (item.product.price * item.quantity), 0)}
+                  <span className="text-2xl font-bold text-green-600">
+                    ₹{Object.values(cart).reduce((sum, item) => {
+                      const discount = item.product.discount || 0;
+                      const finalPrice = item.product.price * (1 - discount / 100);
+                      return sum + (finalPrice * item.quantity);
+                    }, 0).toFixed(0)}
                   </span>
                 </div>
+                {Object.values(cart).some(item => item.product.discount && item.product.discount > 0) && (
+                  <div className="text-xs text-gray-600 mb-2 text-right">
+                    <span className="line-through">₹{Object.values(cart).reduce((sum, item) => sum + (item.product.price * item.quantity), 0)}</span>
+                    <span className="text-green-600 font-semibold ml-2">
+                      You save ₹{(Object.values(cart).reduce((sum, item) => sum + (item.product.price * item.quantity), 0) - 
+                        Object.values(cart).reduce((sum, item) => {
+                          const discount = item.product.discount || 0;
+                          const finalPrice = item.product.price * (1 - discount / 100);
+                          return sum + (finalPrice * item.quantity);
+                        }, 0)).toFixed(0)}!
+                    </span>
+                  </div>
+                )}
                 <Button 
                   className="w-full bg-orange-500 hover:bg-orange-600 text-white"
                   onClick={() => {
@@ -1361,17 +1639,55 @@ const FarmConnectMarketplace = () => {
               <div className="mb-6">
                 <h3 className="font-semibold text-lg mb-3">Order Summary</h3>
                 <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
-                  {Object.entries(cart).map(([key, item]) => (
-                    <div key={key} className="flex justify-between text-sm">
-                      <span>{item.product.name} x {item.quantity}kg</span>
-                      <span className="font-medium">₹{item.product.price * item.quantity}</span>
-                    </div>
-                  ))}
+                  {Object.entries(cart).map(([key, item]) => {
+                    const discount = item.product.discount || 0;
+                    const finalPrice = item.product.price * (1 - discount / 100);
+                    return (
+                      <div key={key} className="flex justify-between text-sm">
+                        <div className="flex-1">
+                          <span>{item.product.name} x {item.quantity}kg</span>
+                          {discount > 0 && (
+                            <span className="ml-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded font-bold">
+                              {discount}% OFF
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {discount > 0 ? (
+                            <div>
+                              <span className="font-medium text-green-600">₹{Math.round(finalPrice * item.quantity)}</span>
+                              <span className="text-xs text-gray-400 line-through ml-2">₹{item.product.price * item.quantity}</span>
+                            </div>
+                          ) : (
+                            <span className="font-medium">₹{item.product.price * item.quantity}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                   <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg">
                     <span>Total:</span>
-                    <span className="text-orange-600">₹{Object.values(cart).reduce((sum, item) => sum + (item.product.price * item.quantity), 0)}</span>
+                    <span className="text-green-600">₹{Math.round(Object.values(cart).reduce((sum, item) => {
+                      const discount = item.product.discount || 0;
+                      const finalPrice = item.product.price * (1 - discount / 100);
+                      return sum + (finalPrice * item.quantity);
+                    }, 0))}</span>
                   </div>
-                  {Object.values(cart).reduce((sum, item) => sum + (item.product.price * item.quantity), 0) < 50 && (
+                  {Object.values(cart).some(item => item.product.discount && item.product.discount > 0) && (
+                    <div className="text-xs text-green-600 font-semibold text-right">
+                      You save ₹{Math.round(Object.values(cart).reduce((sum, item) => sum + (item.product.price * item.quantity), 0) - 
+                        Object.values(cart).reduce((sum, item) => {
+                          const discount = item.product.discount || 0;
+                          const finalPrice = item.product.price * (1 - discount / 100);
+                          return sum + (finalPrice * item.quantity);
+                        }, 0))}!
+                    </div>
+                  )}
+                  {Object.values(cart).reduce((sum, item) => {
+                    const discount = item.product.discount || 0;
+                    const finalPrice = item.product.price * (1 - discount / 100);
+                    return sum + (finalPrice * item.quantity);
+                  }, 0) < 50 && (
                     <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
                       ⚠️ Minimum order amount is ₹50 for online payment. Please add more items.
                     </div>
@@ -1487,8 +1803,12 @@ const FarmConnectMarketplace = () => {
                     return;
                   }
                   
-                  // Calculate total amount
-                  const totalAmount = Object.values(cart).reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+                  // Calculate total amount with discounts
+                  const totalAmount = Math.round(Object.values(cart).reduce((sum, item) => {
+                    const discount = item.product.discount || 0;
+                    const finalPrice = item.product.price * (1 - discount / 100);
+                    return sum + (finalPrice * item.quantity);
+                  }, 0));
                   
                   // Check Stripe minimum amount (₹50 = approximately $0.60)
                   if (totalAmount < 50) {
@@ -1647,7 +1967,7 @@ const FarmConnectMarketplace = () => {
                       {/* Order Header */}
                       <div className="flex justify-between items-start mb-4 pb-4 border-b">
                         <div>
-                          <p className="font-bold text-xl">Order ID: {order.orderId || order.id}</p>
+                          <p className="font-bold text-xl">Order ID: {(order.orderId || order.id).replace(/-/g, '')}</p>
                           <p className="text-sm text-gray-500">Placed on {order.date}</p>
                         </div>
                         <div className="text-right">
@@ -1856,7 +2176,11 @@ const FarmConnectMarketplace = () => {
                     <p className="text-gray-400 text-sm mt-2">Add products you love to your wishlist!</p>
                     <Button
                       className="mt-6 bg-orange-500 hover:bg-orange-600 text-white"
-                      onClick={() => navigate('/')}
+                      onClick={() => {
+                        setActiveView('home');
+                        setActiveSection('products');
+                        navigate('/products');
+                      }}
                     >
                       Browse Products
                     </Button>
@@ -1918,13 +2242,133 @@ const FarmConnectMarketplace = () => {
               <div className="bg-white rounded-xl p-8 max-w-3xl mx-auto">
                 <div className="space-y-6">
                   {/* Profile Picture Section */}
-                  <div className="flex items-center gap-6 pb-6 border-b">
-                    <div className="w-24 h-24 bg-green-600 text-white rounded-full flex items-center justify-center text-4xl font-bold">
-                      {userName.charAt(0).toUpperCase()}
+                  <div className="flex flex-col md:flex-row items-center gap-6 pb-6 border-b">
+                    <div className="relative group">
+                      {profilePicturePreview ? (
+                        <img 
+                          src={profilePicturePreview} 
+                          alt="Profile" 
+                          className="w-24 h-24 rounded-full object-cover border-4 border-green-100"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 bg-green-600 text-white rounded-full flex items-center justify-center text-4xl font-bold border-4 border-green-100">
+                          {userName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      <label 
+                        htmlFor="profile-upload" 
+                        className="absolute bottom-0 right-0 bg-orange-500 hover:bg-orange-600 text-white rounded-full p-2 cursor-pointer shadow-lg transition-all transform hover:scale-110"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <input
+                          id="profile-upload"
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+
+                            // Validate file type
+                            const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+                            if (!validTypes.includes(file.type)) {
+                              toast({
+                                title: 'Invalid File Type',
+                                description: 'Please upload a valid image file (JPG, PNG, or WebP)',
+                                variant: 'destructive',
+                                duration: 3000
+                              });
+                              return;
+                            }
+
+                            // Validate file size (5MB max)
+                            if (file.size > 5 * 1024 * 1024) {
+                              toast({
+                                title: 'File Too Large',
+                                description: 'Image size must be less than 5MB',
+                                variant: 'destructive',
+                                duration: 3000
+                              });
+                              return;
+                            }
+
+                            // Show preview immediately
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setProfilePicturePreview(reader.result as string);
+                            };
+                            reader.readAsDataURL(file);
+
+                            // Upload to server
+                            setIsUploadingImage(true);
+                            const token = localStorage.getItem('fc_jwt');
+                            if (!token) {
+                              toast({
+                                title: 'Error',
+                                description: 'Please login to upload profile picture',
+                                variant: 'destructive',
+                                duration: 3000
+                              });
+                              setIsUploadingImage(false);
+                              return;
+                            }
+
+                            try {
+                              const formData = new FormData();
+                              formData.append('profileImage', file);
+
+                              const response = await fetch('http://localhost:3001/api/user/profile-picture', {
+                                method: 'POST',
+                                headers: {
+                                  'Authorization': `Bearer ${token}`
+                                },
+                                body: formData
+                              });
+
+                              const data = await response.json();
+
+                              if (response.ok && data.ok) {
+                                setProfilePicturePreview(data.profilePicture);
+                                setProfileData(prev => ({
+                                  ...prev,
+                                  profilePicture: data.profilePicture
+                                }));
+                                toast({
+                                  title: 'Success!',
+                                  description: 'Profile picture updated successfully',
+                                  duration: 3000
+                                });
+                              } else {
+                                throw new Error(data.error || 'Failed to upload image');
+                              }
+                            } catch (error: any) {
+                              console.error('[PROFILE] Error uploading image:', error);
+                              toast({
+                                title: 'Upload Failed',
+                                description: error.message || 'Failed to upload image. Please try again.',
+                                variant: 'destructive',
+                                duration: 3000
+                              });
+                              // Revert preview on error
+                              setProfilePicturePreview(profileData.profilePicture || null);
+                            } finally {
+                              setIsUploadingImage(false);
+                              // Reset input
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
+                      {isUploadingImage && (
+                        <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                        </div>
+                      )}
                     </div>
-                    <div>
+                    <div className="text-center md:text-left">
                       <h3 className="text-xl font-semibold">{userName}</h3>
                       <p className="text-sm text-gray-500 capitalize">{userRole}</p>
+                      <p className="text-xs text-gray-400 mt-2">Click the camera icon to upload a new profile picture</p>
                     </div>
                   </div>
 
@@ -2000,6 +2444,20 @@ const FarmConnectMarketplace = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Danger Zone - Delete Account */}
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-semibold mb-2 text-red-600">Danger Zone</h3>
+                    <p className="text-sm text-gray-600 mb-4">Once you delete your account, there is no going back. Please be certain.</p>
+                    <Button 
+                      variant="outline"
+                      className="border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Account
+                    </Button>
                   </div>
 
                   {/* Action Buttons */}
@@ -2140,6 +2598,63 @@ const FarmConnectMarketplace = () => {
             )}
           </div>
         </section>
+      )}
+
+      {/* Delete Account Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Delete Account</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-gray-700 mb-4">
+                Are you sure you want to delete your account? This will permanently remove:
+              </p>
+              <ul className="list-disc list-inside space-y-2 text-sm text-gray-600 ml-2">
+                <li>Your profile and personal information</li>
+                <li>All your orders and order history</li>
+                {userRole === 'farmer' && <li>All your products and listings</li>}
+                <li>Access to your account</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeletingAccount}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleDeleteAccount}
+                disabled={isDeletingAccount}
+              >
+                {isDeletingAccount ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Deleting...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Permanently
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Footer */}

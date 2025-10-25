@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema({
-  orderId: { type: String, unique: true }, // Human-readable order ID like "ORD-1234567"
+  orderId: { type: String, unique: true }, // Human-readable order ID like "ORD1234567"
   customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   farmerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   products: [{
@@ -43,7 +43,7 @@ OrderSchema.pre('save', function(next) {
   if (!this.orderId) {
     // Generate a random 7-digit number
     const randomNum = Math.floor(1000000 + Math.random() * 9000000);
-    this.orderId = `ORD-${randomNum}`;
+    this.orderId = `ORD${randomNum}`;
   }
   next();
 });

@@ -8,8 +8,9 @@ const ProductSchema = new mongoose.Schema({
   category: { type: String, required: true },
   farmerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   imageUrl: { type: String },
-  status: { type: String, enum: ['available', 'out_of_stock'], default: 'available' },
+  status: { type: String, enum: ['available', 'unavailable', 'out_of_stock'], default: 'available' },
   visibility: { type: String, enum: ['visible', 'hidden'], default: 'visible' },
+  discount: { type: Number, default: 0, min: 0, max: 100 }, // Discount percentage (0-100)
 }, { timestamps: true });
 
 module.exports = mongoose.model('Product', ProductSchema);

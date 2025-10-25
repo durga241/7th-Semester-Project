@@ -196,14 +196,14 @@ export default function FarmerAuthModal({ isOpen, onClose, onLogin }: FarmerAuth
 
         {/* Logo */}
         <div className="flex items-center justify-center mb-6">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl flex items-center justify-center">
-              <Leaf className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent">
-              FARMER CONNECT
-            </h1>
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="FarmConnect Logo" 
+            className="h-12 w-auto object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
         </div>
 
         {/* Header */}

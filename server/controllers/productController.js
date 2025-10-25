@@ -93,7 +93,8 @@ exports.createProduct = async (req, res) => {
       farmerId: user._id,
       imageUrl,
       status: req.body.status || 'available',
-      visibility: req.body.visibility || 'visible'
+      visibility: req.body.visibility || 'visible',
+      discount: req.body.discount ? Number(req.body.discount) : 0
     });
     
     console.log(`✅ Product created: ${product.title}`);
@@ -165,10 +166,10 @@ exports.updateProduct = async (req, res) => {
     }
 
     // Update fields
-    const updateFields = ['title', 'description', 'price', 'quantity', 'category', 'imageUrl', 'status', 'visibility'];
+    const updateFields = ['title', 'description', 'price', 'quantity', 'category', 'imageUrl', 'status', 'visibility', 'discount'];
     updateFields.forEach((field) => {
       if (req.body[field] !== undefined) {
-        product[field] = req.body[field];
+        product[field] = field === 'discount' ? Number(req.body[field]) : req.body[field];
       }
     });
     
@@ -210,7 +211,7 @@ exports.toggleStatus = async (req, res) => {
   try {
     const { status } = req.body;
     
-    if (!status || !['available', 'out_of_stock'].includes(status)) {
+    if (!status || !['available', 'unavailable', 'out_of_stock'].includes(status)) {
       return res.status(400).json({ ok: false, error: 'Invalid status' });
     }
 
@@ -255,12 +256,14 @@ exports.toggleVisibility = async (req, res) => {
     }
     
     product.visibility = visibility;
+    product.status = visibility === 'visible' ? 'available' : 'unavailable';
     await product.save();
     
-    console.log(`✅ Product visibility updated: ${product.title} -> ${visibility}`);
+    console.log(`✅ Product visibility and status updated: ${product.title} -> ${visibility} / ${product.status}`);
     res.json({ ok: true, product });
   } catch (err) {
     console.error('❌ Toggle visibility error:', err);
-    res.status(500).json({ ok: false, error: 'Visibility update failed' });
+    console.error('❌ Full error stack:', err.stack);
+    res.status(500).json({ ok: false, error: 'Visibility update failed: ' + err.message });
   }
 };

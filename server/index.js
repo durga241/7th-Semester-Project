@@ -20,6 +20,7 @@ const Product = require('./models/Product');
 const Order = require('./models/Order');
 const Otp = require('./models/Otp');
 const stripeController = require('./controllers/stripeController');
+const contactController = require('./controllers/contactController');
 
 const app = express();
 const server = http.createServer(app);
@@ -623,6 +624,127 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Forgot password - send reset email
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    console.log('[FORGOT PASSWORD] Request for:', email);
+    
+    if (!email || !String(email).includes('@')) {
+      return res.status(400).json({ ok: false, error: 'Valid email required' });
+    }
+
+    const user = await User.findOne({ email: String(email).toLowerCase() });
+    if (!user) {
+      console.log('[FORGOT PASSWORD] User not found, but returning success for security');
+      // Do not reveal whether user exists
+      return res.json({ ok: true, message: 'If an account exists, a reset email has been sent' });
+    }
+
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 1000 * 60 * 30); // 30 minutes
+    user.resetPasswordToken = token;
+    user.resetPasswordExpires = expires;
+    await user.save();
+
+    console.log('[FORGOT PASSWORD] Token generated for:', email);
+
+    const resetUrlBase = process.env.CLIENT_BASE_URL || 'http://localhost:5173';
+    const link = `${resetUrlBase}/reset-password/${token}`;
+
+    const nodemailer = require('nodemailer');
+    
+    // Try to send email
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"FarmConnect" <${process.env.GMAIL_USER}>`,
+        to: user.email,
+        subject: 'Password Reset - FarmConnect',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #16a34a;">Reset Your Password</h2>
+            <p>Hi ${user.name},</p>
+            <p>We received a request to reset your password. Click the button below to create a new password:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${link}" style="background-color: #16a34a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
+            </div>
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="color: #666; word-break: break-all;">${link}</p>
+            <p style="color: #666; font-size: 14px;">This link will expire in 30 minutes.</p>
+            <p style="color: #666; font-size: 14px;">If you didn't request this, please ignore this email.</p>
+          </div>
+        `,
+        text: `Reset your password using this link (valid 30 mins): ${link}`
+      });
+
+      console.log('[FORGOT PASSWORD] ✅ Email sent successfully to:', email);
+    } catch (emailError) {
+      console.error('[FORGOT PASSWORD] ❌ Email send failed:', emailError.message);
+      // Still return success for security, but log the error
+    }
+
+    return res.json({ ok: true, message: 'If an account exists, a reset email has been sent' });
+  } catch (err) {
+    console.error('[FORGOT PASSWORD] Error:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to initiate password reset' });
+  }
+});
+
+// Reset password using token
+app.post('/api/auth/reset-password/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body || {};
+
+    console.log('[RESET PASSWORD] Attempt with token:', token?.substring(0, 10) + '...');
+
+    if (!token || !password) {
+      return res.status(400).json({ ok: false, error: 'Token and new password are required' });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ ok: false, error: 'Password must be at least 6 characters' });
+    }
+
+    const user = await User.findOne({ 
+      resetPasswordToken: token, 
+      resetPasswordExpires: { $gt: new Date() } 
+    });
+    
+    if (!user) {
+      console.log('[RESET PASSWORD] Invalid or expired token');
+      return res.status(400).json({ ok: false, error: 'Invalid or expired token' });
+    }
+
+    const hashed = await bcrypt.hash(String(password), 10);
+    user.password = hashed;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    console.log('[RESET PASSWORD] ✅ Password reset successfully for:', user.email);
+
+    return res.json({ ok: true, message: 'Password reset successfully. Please login.' });
+  } catch (err) {
+    console.error('[RESET PASSWORD] Error:', err);
+    return res.status(500).json({ ok: false, error: 'Failed to reset password' });
+  }
+});
+
+// ============================================
+// CONTACT FORM
+// ============================================
+app.post('/api/contact', contactController.sendContactEmail);
+
 // Products
 app.post('/api/products', auth, upload.single('image'), async (req, res) => {
   try {
@@ -703,6 +825,10 @@ app.post('/api/products', auth, upload.single('image'), async (req, res) => {
 
     let product = null;
     try {
+      const discountValue = Number(req.body.discount) || 0;
+      console.log(`🏷️ [PRODUCT] Discount received from request: ${req.body.discount}`);
+      console.log(`🏷️ [PRODUCT] Discount value to save: ${discountValue}`);
+      
       product = await Product.create({
         title: req.body.title,
         description: req.body.description || '',
@@ -712,9 +838,11 @@ app.post('/api/products', auth, upload.single('image'), async (req, res) => {
         farmerId: user._id,
         imageUrl,
         status: req.body.status || 'available',
-        visibility: req.body.visibility || 'visible'
+        visibility: req.body.visibility || 'visible',
+        discount: discountValue
       });
       console.log(`[PRODUCT] ✅ Product created successfully: ${product.title}`);
+      console.log(`🏷️ [PRODUCT] Product saved with discount: ${product.discount}%`);
     } catch (dbError) {
       console.log(`[PRODUCT] Database error, creating product in memory:`, dbError.message);
       // Create product object in memory if database fails
@@ -730,6 +858,7 @@ app.post('/api/products', auth, upload.single('image'), async (req, res) => {
         imageUrl,
         status: req.body.status || 'available',
         visibility: req.body.visibility || 'visible',
+        discount: Number(req.body.discount) || 0,
         createdAt: new Date()
       };
       // Store in memory
@@ -759,6 +888,14 @@ app.get('/api/products', async (req, res) => {
         .skip((Number(page) - 1) * Number(limit))
         .limit(Number(limit));
       total = await Product.countDocuments(q);
+      console.log(`[PRODUCTS] Fetched ${products.length} products from database`);
+      
+      // Log discount values for debugging
+      products.forEach(p => {
+        if (p.discount && p.discount > 0) {
+          console.log(`🏷️ [PRODUCTS] ${p.title} has ${p.discount}% discount`);
+        }
+      });
     } else {
       // Database not connected, use memory storage
       console.log(`[PRODUCTS] Database not connected, using memory storage`);
@@ -842,7 +979,7 @@ app.put('/api/products/:id', auth, upload.single('image'), async (req, res) => {
         }
       }
 
-      ['title','description','price','quantity','category','imageUrl','status','visibility'].forEach((k) => {
+      ['title','description','price','quantity','category','imageUrl','status','visibility','discount'].forEach((k) => {
         if (req.body[k] !== undefined) product[k] = req.body[k];
       });
       await product.save();
@@ -853,7 +990,7 @@ app.put('/api/products/:id', auth, upload.single('image'), async (req, res) => {
       if (!product) return res.status(404).json({ ok: false, error: 'Product not found' });
       if (String(product.farmerId) !== req.user.uid) return res.status(403).json({ ok: false, error: 'Forbidden' });
 
-      ['title','description','price','quantity','category','imageUrl','status','visibility'].forEach((k) => {
+      ['title','description','price','quantity','category','imageUrl','status','visibility','discount'].forEach((k) => {
         if (req.body[k] !== undefined) product[k] = req.body[k];
       });
       productStore.set(req.params.id, product);
@@ -943,22 +1080,26 @@ app.patch('/api/products/:id/visibility', auth, async (req, res) => {
       if (String(product.farmerId) !== req.user.uid) return res.status(403).json({ ok: false, error: 'Forbidden' });
       
       product.visibility = visibility;
+      product.status = visibility === 'visible' ? 'available' : 'unavailable';
       await product.save();
-      console.log(`[PRODUCT] ✅ Product visibility updated in database: ${product.title} -> ${visibility}`);
+      console.log(`[PRODUCT] Product visibility and status updated in database: ${product.title} -> ${visibility} / ${product.status}`);
     } else {
       product = productStore.get(req.params.id);
       if (!product) return res.status(404).json({ ok: false, error: 'Product not found' });
       if (String(product.farmerId) !== req.user.uid) return res.status(403).json({ ok: false, error: 'Forbidden' });
       
       product.visibility = visibility;
+      product.status = visibility === 'visible' ? 'available' : 'unavailable';
       productStore.set(req.params.id, product);
-      console.log(`[PRODUCT] ✅ Product visibility updated in memory: ${product.title} -> ${visibility}`);
+      console.log(`[PRODUCT] Product visibility and status updated in memory: ${product.title} -> ${visibility} / ${product.status}`);
     }
     
     res.json({ ok: true, product });
   } catch (err) {
     console.error('[PRODUCT] Visibility update error:', err.message);
-    res.status(500).json({ ok: false, error: 'Visibility update failed' });
+    console.error('[PRODUCT] Full error:', err);
+    console.error('[PRODUCT] Stack:', err.stack);
+    res.status(500).json({ ok: false, error: 'Visibility update failed: ' + err.message });
   }
 });
 
@@ -992,7 +1133,13 @@ app.post('/api/orders/create-payment', auth, async (req, res) => {
       }
       
       if (!product) return res.status(400).json({ ok: false, error: 'Invalid product' });
-      total += product.price * Number(it.quantity);
+      
+      // Calculate price with discount if applicable
+      const effectivePrice = product.discount && product.discount > 0 
+        ? product.price - (product.price * product.discount / 100)
+        : product.price;
+      
+      total += effectivePrice * Number(it.quantity);
       farmerId = product.farmerId;
     }
 
@@ -1224,7 +1371,7 @@ app.post('/api/orders', auth, async (req, res) => {
 
     // Generate readable order ID
     const randomNum = Math.floor(1000000 + Math.random() * 9000000);
-    const readableOrderId = `ORD-${randomNum}`;
+    const readableOrderId = `ORD${randomNum}`;
     
     const orderData = {
       orderId: readableOrderId, // Set orderId explicitly
@@ -1253,7 +1400,7 @@ app.post('/api/orders', auth, async (req, res) => {
     } else {
       console.log('[ORDER] ⚠️ Database not connected, order saved locally');
       const randomNum = Math.floor(1000000 + Math.random() * 9000000);
-      const localOrder = { ...orderData, orderId: `ORD-${randomNum}`, _id: `ORD${Date.now()}`, createdAt: new Date() };
+      const localOrder = { ...orderData, orderId: `ORD${randomNum}`, _id: `ORD${Date.now()}`, createdAt: new Date() };
       res.json({ ok: true, order: localOrder, orderId: localOrder.orderId });
     }
   } catch (error) {
@@ -1574,6 +1721,25 @@ app.delete('/api/orders/:orderId', auth, async (req, res) => {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
+
+// ==================== NOTIFICATION ENDPOINTS ====================
+
+const notificationController = require('./controllers/notificationController');
+
+// Get all notifications for a farmer
+app.get('/api/notifications/farmer/:farmerId', auth, notificationController.getFarmerNotifications);
+
+// Get unread notification count
+app.get('/api/notifications/farmer/:farmerId/unread-count', auth, notificationController.getUnreadCount);
+
+// Mark notification as read
+app.patch('/api/notifications/:notificationId/read', auth, notificationController.markAsRead);
+
+// Mark all notifications as read
+app.patch('/api/notifications/farmer/:farmerId/read-all', auth, notificationController.markAllAsRead);
+
+// Delete notification
+app.delete('/api/notifications/:notificationId', auth, notificationController.deleteNotification);
 
 // ==================== ADMIN ENDPOINTS ====================
 
@@ -1965,6 +2131,123 @@ app.put('/api/user/change-password', auth, async (req, res) => {
   } catch (error) {
     console.error('[PROFILE] Error changing password:', error);
     res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Upload profile picture
+app.post('/api/user/profile-picture', auth, upload.single('profileImage'), async (req, res) => {
+  console.log('[PROFILE PICTURE] 🔥 Route hit! File:', req.file ? 'present' : 'missing');
+  try {
+    if (!req.file) {
+      console.log('[PROFILE PICTURE] ❌ No file in request');
+      return res.status(400).json({ ok: false, error: 'No image file provided' });
+    }
+
+    // Check if Cloudinary is configured
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
+      console.log('[PROFILE PICTURE] ❌ Cloudinary not configured');
+      return res.status(500).json({ ok: false, error: 'Image upload service not configured' });
+    }
+
+    console.log(`[PROFILE PICTURE] 📸 Uploading image for user ${req.user.uid}`);
+
+    // Upload to Cloudinary using upload_stream
+    const uploadPromise = new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'farmconnect/profiles',
+          resource_type: 'image',
+          transformation: [
+            { width: 400, height: 400, crop: 'fill', gravity: 'face' },
+            { quality: 'auto:good' }
+          ]
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    const result = await uploadPromise;
+    const imageUrl = result.secure_url;
+
+    // Update user's profile picture in database
+    const user = await User.findByIdAndUpdate(
+      req.user.uid,
+      { profilePicture: imageUrl },
+      { new: true }
+    ).select('-password -resetPasswordToken -resetPasswordExpires');
+
+    if (!user) {
+      return res.status(404).json({ ok: false, error: 'User not found' });
+    }
+
+    console.log(`[PROFILE PICTURE] ✅ Image uploaded successfully for ${user.email}`);
+    res.json({ 
+      ok: true, 
+      message: 'Profile picture updated successfully',
+      profilePicture: imageUrl,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || '',
+        role: user.role,
+        profilePicture: user.profilePicture
+      }
+    });
+  } catch (error) {
+    console.error('[PROFILE PICTURE] Error uploading image:', error);
+    res.status(500).json({ ok: false, error: error.message || 'Failed to upload image' });
+  }
+});
+
+// Delete user account
+app.delete('/api/user/account', auth, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    
+    console.log(`[DELETE ACCOUNT] Request to delete account for user ${userId}`);
+
+    // Find the user
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ ok: false, error: 'User not found' });
+    }
+
+    // Delete user's products if farmer
+    if (user.role === 'farmer') {
+      const deletedProducts = await Product.deleteMany({ farmerId: userId });
+      console.log(`[DELETE ACCOUNT] Deleted ${deletedProducts.deletedCount} products for farmer ${user.email}`);
+    }
+
+    // Delete user's orders
+    const deletedOrders = await Order.deleteMany({ 
+      $or: [
+        { customerId: userId },
+        { 'items.farmerId': userId }
+      ]
+    });
+    console.log(`[DELETE ACCOUNT] Deleted ${deletedOrders.deletedCount} orders for user ${user.email}`);
+
+    // Delete the user account
+    await User.findByIdAndDelete(userId);
+    
+    console.log(`[DELETE ACCOUNT] Successfully deleted account for ${user.email}`);
+
+    res.json({ 
+      ok: true, 
+      message: 'Account deleted successfully'
+    });
+  } catch (error) {
+    console.error('[DELETE ACCOUNT] Error:', error);
+    res.status(500).json({ 
+      ok: false, 
+      error: error.message || 'Failed to delete account' 
+    });
   }
 });
 

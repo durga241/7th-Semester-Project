@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Mail, Lock, Loader2, Eye, EyeOff, User, Phone } from 'lucide-react';
+import { X, Mail, Lock, Loader2, Eye, EyeOff, User, Phone, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,7 +33,12 @@ export default function FarmerAuthModal({ isOpen, onClose, onLogin, onSignupClic
     
     if (!email) {
       toast({
-        title: '❌ Email Required',
+        title: (
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>Email Required</span>
+          </div>
+        ),
         description: 'Please enter your registered email',
         variant: 'destructive'
       });
@@ -46,7 +51,12 @@ export default function FarmerAuthModal({ isOpen, onClose, onLogin, onSignupClic
     
     if (res.success) {
       toast({
-        title: '✅ Email Sent!',
+        title: (
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            <span>Email Sent!</span>
+          </div>
+        ),
         description: 'If an account exists with this email, you will receive a password reset link shortly.',
       });
       
@@ -57,7 +67,12 @@ export default function FarmerAuthModal({ isOpen, onClose, onLogin, onSignupClic
       }, 2000);
     } else {
       toast({
-        title: '❌ Request Failed',
+        title: (
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>Request Failed</span>
+          </div>
+        ),
         description: res.error || 'Could not send reset email',
         variant: 'destructive'
       });
@@ -75,7 +90,12 @@ export default function FarmerAuthModal({ isOpen, onClose, onLogin, onSignupClic
       // Login flow
       if (!email || !password) {
         toast({
-          title: '❌ Missing Fields',
+          title: (
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              <span>Missing Fields</span>
+            </div>
+          ),
           description: 'Please enter email and password',
           variant: 'destructive'
         });
@@ -88,7 +108,12 @@ export default function FarmerAuthModal({ isOpen, onClose, onLogin, onSignupClic
       
       if (res.success && res.user) {
         toast({
-          title: '✅ Login Successful!',
+          title: (
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Login Successful!</span>
+            </div>
+          ),
           description: 'Welcome back!',
         });
         

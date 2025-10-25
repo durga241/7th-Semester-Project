@@ -1,5 +1,7 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 // Initialize Stripe with test mode configuration
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -53,13 +55,18 @@ exports.createCheckoutSession = async (req, res) => {
         return res.status(400).json({ ok: false, error: `Product ${product.title} is not available` });
       }
       
-      const itemTotal = product.price * item.quantity;
+      // Calculate price with discount if applicable
+      const effectivePrice = product.discount && product.discount > 0 
+        ? product.price - (product.price * product.discount / 100)
+        : product.price;
+      
+      const itemTotal = effectivePrice * item.quantity;
       total += itemTotal;
       
       orderProducts.push({
         productId: product._id,
         quantity: item.quantity,
-        price: product.price
+        price: effectivePrice // Store discounted price in order
       });
 
       // Create line items for Stripe
@@ -71,7 +78,7 @@ exports.createCheckoutSession = async (req, res) => {
             description: product.description || product.category,
             images: product.imageUrl ? [product.imageUrl] : [],
           },
-          unit_amount: Math.round(product.price * 100), // Convert to paise
+          unit_amount: Math.round(effectivePrice * 100), // Convert to paise, use discounted price
         },
         quantity: item.quantity,
       });
@@ -103,6 +110,9 @@ exports.createCheckoutSession = async (req, res) => {
     console.log(`🌐 Frontend URL: ${frontendUrl}`);
 
     // Create Stripe Checkout Session
+    // NOTE: Logo branding must be configured in Stripe Dashboard (Settings > Branding)
+    // The 'branding' parameter is not supported in the API
+    // See docs/STRIPE_BRANDING_SETUP.md for instructions
     console.log('🔄 Creating Stripe checkout session...');
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -212,6 +222,27 @@ exports.verifyStripePayment = async (req, res) => {
           { $inc: { quantity: -item.quantity } }
         );
         console.log(`  - Product ${item.productId}: -${item.quantity}`);
+      }
+
+      // Create notification for farmer
+      try {
+        const customer = await User.findById(order.customerId);
+        await Notification.create({
+          farmerId: order.farmerId,
+          type: 'order',
+          title: 'New Order Received!',
+          message: `You have received a new order from ${customer?.name || 'a customer'}`,
+          orderId: order._id,
+          metadata: {
+            customerName: customer?.name || 'Customer',
+            orderTotal: order.total,
+            productCount: order.products.length
+          }
+        });
+        console.log(`✅ Notification created for farmer: ${order.farmerId}`);
+      } catch (notifError) {
+        console.error('⚠️ Failed to create notification:', notifError);
+        // Don't fail the order if notification fails
       }
 
       console.log(`✅ Payment verified and order confirmed: ${order._id}`);
@@ -324,6 +355,26 @@ exports.handleStripeWebhook = async (req, res) => {
               item.productId,
               { $inc: { quantity: -item.quantity } }
             );
+          }
+
+          // Create notification for farmer
+          try {
+            const customer = await User.findById(order.customerId);
+            await Notification.create({
+              farmerId: order.farmerId,
+              type: 'order',
+              title: 'New Order Received!',
+              message: `You have received a new order from ${customer?.name || 'a customer'}`,
+              orderId: order._id,
+              metadata: {
+                customerName: customer?.name || 'Customer',
+                orderTotal: order.total,
+                productCount: order.products.length
+              }
+            });
+            console.log(`✅ Webhook: Notification created for farmer: ${order.farmerId}`);
+          } catch (notifError) {
+            console.error('⚠️ Webhook: Failed to create notification:', notifError);
           }
 
           console.log(`✅ Webhook: Order confirmed: ${order._id}`);

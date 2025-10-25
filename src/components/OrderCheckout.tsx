@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingCart, CreditCard, MapPin, User, Phone, X } from 'lucide-react';
+import { ShoppingCart, CreditCard, MapPin, User, Phone, X, Home, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -103,18 +103,40 @@ const OrderCheckout = ({ product, onClose, onSuccess, onStatusMessage }: OrderCh
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5" />
-            Order Checkout
-          </CardTitle>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl border-green-200">
+        <CardHeader className="flex flex-row items-center justify-between bg-gradient-to-r from-green-50 to-blue-50 border-b-2 border-green-200 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-green-600 p-2 rounded-lg">
+              <img 
+                src="/logo.png" 
+                alt="FarmConnect Logo" 
+                className="h-8 w-auto"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const homeIcon = e.currentTarget.nextElementSibling as HTMLElement;
+                  if (homeIcon) homeIcon.style.display = 'block';
+                }}
+              />
+              <Home className="w-6 h-6 text-white" style={{display: 'none'}} />
+            </div>
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl font-bold text-green-700">
+                <ShoppingCart className="w-6 h-6" />
+                Secure Checkout
+              </CardTitle>
+              <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                <CreditCard className="w-3 h-3" />
+                Powered by Stripe • SSL Encrypted
+              </p>
+            </div>
+          </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
             disabled={isProcessing}
+            className="hover:bg-red-100 hover:text-red-600"
           >
             <X className="w-5 h-5" />
           </Button>
@@ -123,8 +145,11 @@ const OrderCheckout = ({ product, onClose, onSuccess, onStatusMessage }: OrderCh
         <CardContent>
           <form onSubmit={handleOrderSubmit} className="space-y-6">
             {/* Product Details */}
-            <div className="bg-muted/20 rounded-lg p-4">
-              <h3 className="font-semibold mb-3">Product Details</h3>
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-5 border-2 border-green-100">
+              <h3 className="font-semibold mb-4 text-green-800 flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                Product Details
+              </h3>
               <div className="flex gap-4">
                 {product.imageUrl ? (
                   <img 
@@ -138,9 +163,9 @@ const OrderCheckout = ({ product, onClose, onSuccess, onStatusMessage }: OrderCh
                   </div>
                 )}
                 <div className="flex-1">
-                  <h4 className="font-semibold text-lg">{product.title}</h4>
-                  <p className="text-sm text-muted-foreground">{product.category}</p>
-                  <p className="text-lg font-bold text-primary mt-2">₹{product.price} per unit</p>
+                  <h4 className="font-bold text-lg text-gray-900">{product.title}</h4>
+                  <p className="text-sm text-green-600 font-medium">{product.category}</p>
+                  <p className="text-xl font-bold text-green-700 mt-2">₹{product.price} <span className="text-sm font-normal text-gray-600">per unit</span></p>
                   <p className="text-sm text-muted-foreground">Available: {product.quantity} units</p>
                 </div>
               </div>
@@ -165,10 +190,10 @@ const OrderCheckout = ({ product, onClose, onSuccess, onStatusMessage }: OrderCh
             </div>
 
             {/* Shipping Details */}
-            <div className="space-y-4">
-              <h3 className="font-semibold flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                Shipping Details
+            <div className="space-y-4 bg-blue-50 p-5 rounded-xl border-2 border-blue-100">
+              <h3 className="font-semibold text-blue-800 flex items-center gap-2 text-lg">
+                <MapPin className="w-5 h-5" />
+                Delivery Address
               </h3>
               
               <div>
@@ -260,50 +285,54 @@ const OrderCheckout = ({ product, onClose, onSuccess, onStatusMessage }: OrderCh
             </div>
 
             {/* Order Summary */}
-            <div className="bg-primary/10 rounded-lg p-4">
-              <h3 className="font-semibold mb-3">Order Summary</h3>
+            <div className="bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl p-5 border-2 border-green-200">
+              <h3 className="font-bold mb-4 text-green-800 text-lg">Order Summary</h3>
               <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Price per unit:</span>
-                  <span className="font-medium">₹{product.price}</span>
+                <div className="flex justify-between text-gray-700">
+                  <span className="font-medium">Price per unit:</span>
+                  <span className="font-semibold">₹{product.price}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Quantity:</span>
-                  <span className="font-medium">{orderQuantity} units</span>
+                <div className="flex justify-between text-gray-700">
+                  <span className="font-medium">Quantity:</span>
+                  <span className="font-semibold">{orderQuantity} units</span>
                 </div>
-                <div className="border-t pt-2 mt-2">
-                  <div className="flex justify-between text-lg">
-                    <span className="font-semibold">Total Amount:</span>
-                    <span className="font-bold text-primary">₹{totalAmount.toFixed(2)}</span>
+                <div className="border-t-2 border-green-300 pt-3 mt-3">
+                  <div className="flex justify-between text-xl">
+                    <span className="font-bold text-gray-900">Total Amount:</span>
+                    <span className="font-bold text-green-700">₹{totalAmount.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-2">
               <Button
                 type="submit"
-                className="flex-1"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-6 text-lg shadow-lg hover:shadow-xl transition-all"
                 disabled={isProcessing}
               >
-                <CreditCard className="w-4 h-4 mr-2" />
-                {isProcessing ? 'Processing...' : 'Proceed to Payment'}
+                <CreditCard className="w-5 h-5 mr-2" />
+                {isProcessing ? 'Processing...' : 'Proceed to Secure Payment'}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={onClose}
                 disabled={isProcessing}
-                className="flex-1"
+                className="flex-1 border-2 border-gray-300 hover:border-red-500 hover:bg-red-50 hover:text-red-600 py-6 text-lg font-semibold transition-all"
               >
                 Cancel
               </Button>
             </div>
 
-            <p className="text-xs text-center text-muted-foreground">
-              Secure payment powered by Stripe
-            </p>
+            <div className="text-center pt-3 space-y-2">
+              <p className="text-sm text-gray-600 flex items-center justify-center gap-2 font-medium">
+                <CreditCard className="w-4 h-4 text-green-600" />
+                256-bit SSL Encrypted Payment • Powered by Stripe
+              </p>
+              <p className="text-xs text-gray-500">Your payment information is secure and never stored on our servers</p>
+            </div>
           </form>
         </CardContent>
       </Card>

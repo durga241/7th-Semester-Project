@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Search, MapPin, Leaf, Users, TrendingUp, ShoppingBag, Star, User } from 'lucide-react';
+import { Search, MapPin, Leaf, Users, TrendingUp, ShoppingBag, Star, User, Sprout } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import LocationSelector from './LocationSelector';
+import { calculateDiscountedPrice } from '@/lib/priceUtils';
 
 interface Product {
   id: string;
@@ -15,6 +16,7 @@ interface Product {
   image: string; // can be emoji or URL
   rating: number;
   category: string;
+  discount?: number;
 }
 
 interface HomePageProps {
@@ -35,19 +37,28 @@ const HomePage = ({ onNavigate, currentLocation, onLocationChange, onProductOrde
     const load = async () => {
       try {
         const live = await fetchLiveProducts(selectedCategory !== 'All' ? selectedCategory : undefined);
-        const mapped: Product[] = (live || []).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          price: p.price,
-          unit: p.unit || 'kg',
-          farmer: p.farmer || 'Farmer',
-          location: p.location || '',
-          image: p.image, // may be URL
-          rating: p.rating || 4.5,
-          category: p.category || 'Misc'
-        }));
+        console.log('[HOME PAGE] Raw products from API:', live);
+        
+        const mapped: Product[] = (live || []).map((p: any) => {
+          console.log(`[HOME PAGE] Product: ${p.name}, Discount: ${p.discount}`);
+          return {
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            unit: p.unit || 'kg',
+            farmer: p.farmer || 'Farmer',
+            location: p.location || '',
+            image: p.image, // may be URL
+            rating: p.rating || 4.5,
+            category: p.category || 'Misc',
+            discount: p.discount // Keep original discount value (can be 0, undefined, or a number)
+          };
+        });
+        
+        console.log('[HOME PAGE] Mapped products:', mapped);
         setProducts(mapped);
-      } catch {
+      } catch (err) {
+        console.error('[HOME PAGE] Error loading products:', err);
         setProducts([]);
       }
     };
@@ -69,7 +80,7 @@ const HomePage = ({ onNavigate, currentLocation, onLocationChange, onProductOrde
       <section className="hero-gradient py-20 px-4 md:px-8">
         <div className="max-w-7xl mx-auto text-center">
           <h1 className="text-4xl md:text-6xl font-bold text-primary-foreground mb-6">
-            Fresh From Farm to Your Table 🌾
+            Fresh From Farm to Your Table <Sprout className="inline h-8 w-8 ml-2" />
           </h1>
           <p className="text-lg md:text-xl text-primary-foreground/90 mb-8 max-w-3xl mx-auto">
             Connect directly with local farmers for fresh, organic produce at fair prices. 
@@ -125,7 +136,18 @@ const HomePage = ({ onNavigate, currentLocation, onLocationChange, onProductOrde
 
           {/* Products Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredProducts.map(product => (
+            {filteredProducts.map(product => {
+              // Debug: Log discount for each product
+              if (product.name === 'BlackGram' || product.name === 'Groundnut Oil' || product.name === 'Maida') {
+                console.log(`🔍 [RENDER] ${product.name}:`, {
+                  discount: product.discount,
+                  type: typeof product.discount,
+                  hasDiscount: product.discount && product.discount > 0,
+                  fullProduct: product
+                });
+              }
+              
+              return (
               <Card key={product.id} className="card-gradient overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-105 border border-border/20">
                 <div className="aspect-square bg-muted/20 relative flex items-center justify-center">
                   {/^https?:\/\//.test(product.image) ? (
@@ -134,8 +156,21 @@ const HomePage = ({ onNavigate, currentLocation, onLocationChange, onProductOrde
                     <div className="text-6xl">{product.image}</div>
                   )}
                   <div className="absolute top-3 right-3 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-semibold shadow-md">
-                    ₹{product.price}/{product.unit}
+                    {product.discount && product.discount > 0 ? (
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs line-through opacity-70">₹{product.price}</span>
+                        <span>₹{calculateDiscountedPrice(product.price, product.discount).toFixed(2)}/{product.unit}</span>
+                      </div>
+                    ) : (
+                      <span>₹{product.price}/{product.unit}</span>
+                    )}
                   </div>
+                  {/* Discount Badge - Left side */}
+                  {product.discount && product.discount > 0 && (
+                    <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-lg animate-pulse">
+                      {product.discount}% OFF
+                    </div>
+                  )}
                 </div>
                 
                 <CardContent className="p-6">
@@ -175,7 +210,8 @@ const HomePage = ({ onNavigate, currentLocation, onLocationChange, onProductOrde
                   </Button>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
 
           {filteredProducts.length === 0 && (

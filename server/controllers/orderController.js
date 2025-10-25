@@ -1,6 +1,7 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 // Create new order with Razorpay
 exports.createPayment = async (req, res) => {
@@ -34,13 +35,18 @@ exports.createPayment = async (req, res) => {
         return res.status(400).json({ ok: false, error: `Product ${product.title} is not available` });
       }
       
-      const itemTotal = product.price * item.quantity;
+      // Calculate price with discount if applicable
+      const effectivePrice = product.discount && product.discount > 0 
+        ? product.price - (product.price * product.discount / 100)
+        : product.price;
+      
+      const itemTotal = effectivePrice * item.quantity;
       total += itemTotal;
       
       orderProducts.push({
         productId: product._id,
         quantity: item.quantity,
-        price: product.price
+        price: effectivePrice // Store discounted price in order
       });
     }
 
@@ -145,6 +151,27 @@ exports.verifyPayment = async (req, res) => {
         );
       }
 
+      // Create notification for farmer
+      try {
+        const customer = await User.findById(order.customerId);
+        await Notification.create({
+          farmerId: order.farmerId,
+          type: 'order',
+          title: 'New Order Received!',
+          message: `You have received a new order from ${customer?.name || 'a customer'}`,
+          orderId: order._id,
+          metadata: {
+            customerName: customer?.name || 'Customer',
+            orderTotal: order.total,
+            productCount: order.products.length
+          }
+        });
+        console.log(`✅ Notification created for farmer: ${order.farmerId}`);
+      } catch (notifError) {
+        console.error('⚠️ Failed to create notification:', notifError);
+        // Don't fail the order if notification fails
+      }
+
       console.log(`✅ Order confirmed (test mode): ${order._id}`);
       
       return res.json({
@@ -178,6 +205,27 @@ exports.verifyPayment = async (req, res) => {
         item.productId,
         { $inc: { quantity: -item.quantity } }
       );
+    }
+
+    // Create notification for farmer
+    try {
+      const customer = await User.findById(order.customerId);
+      await Notification.create({
+        farmerId: order.farmerId,
+        type: 'order',
+        title: 'New Order Received!',
+        message: `You have received a new order from ${customer?.name || 'a customer'}`,
+        orderId: order._id,
+        metadata: {
+          customerName: customer?.name || 'Customer',
+          orderTotal: order.total,
+          productCount: order.products.length
+        }
+      });
+      console.log(`✅ Notification created for farmer: ${order.farmerId}`);
+    } catch (notifError) {
+      console.error('⚠️ Failed to create notification:', notifError);
+      // Don't fail the order if notification fails
     }
 
     console.log(`✅ Payment verified and order confirmed: ${order._id}`);

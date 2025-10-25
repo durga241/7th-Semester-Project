@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Star, MapPin, User, ShoppingBag, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { calculateDiscountedPrice } from "@/lib/priceUtils";
 
 interface Product {
   id: string;
@@ -17,6 +18,7 @@ interface Product {
   imageUrl?: string;
   rating: number;
   category: string;
+  discount?: number;
 }
 
 interface ProductCardProps {
@@ -28,22 +30,40 @@ const ProductCard = ({ product, onOrder }: ProductCardProps) => {
   const [quantity, setQuantity] = useState(1);
   const [isFavorite, setIsFavorite] = useState(false);
   
-  const totalPrice = (product.price * quantity).toFixed(2);
+  // Calculate effective price (with discount if applicable)
+  const effectivePrice = product.discount && product.discount > 0 
+    ? calculateDiscountedPrice(product.price, product.discount)
+    : product.price;
+  
+  const totalPrice = (effectivePrice * quantity).toFixed(2);
 
   return (
     <Card className="card-gradient overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-105 border border-border/20">
       <div className="aspect-square bg-muted/20 relative flex items-center justify-center">
         <div className="text-6xl">{product.image}</div>
         <div className="absolute top-3 right-3 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-semibold shadow-md">
-          ₹{product.price}/{product.unit}
+          {product.discount && product.discount > 0 ? (
+            <div className="flex flex-col items-end">
+              <span className="text-xs line-through opacity-70">₹{product.price}</span>
+              <span>₹{effectivePrice.toFixed(2)}/{product.unit}</span>
+            </div>
+          ) : (
+            <span>₹{product.price}/{product.unit}</span>
+          )}
         </div>
-        {/* Favorite Heart Button */}
+        {/* Discount Badge - Left side */}
+        {product.discount && product.discount > 0 && (
+          <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-lg animate-pulse">
+            {product.discount}% OFF
+          </div>
+        )}
+        {/* Favorite Heart Button - Below discount badge */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             setIsFavorite(!isFavorite);
           }}
-          className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-md hover:scale-110 transition-transform cursor-pointer"
+          className={`absolute ${product.discount && product.discount > 0 ? 'top-16' : 'top-3'} left-3 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-md hover:scale-110 transition-transform cursor-pointer`}
           aria-label="Toggle favorite"
         >
           <Heart 

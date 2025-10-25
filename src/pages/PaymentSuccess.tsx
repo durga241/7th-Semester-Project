@@ -18,7 +18,7 @@ const PaymentSuccess = () => {
     // Clear cart from local storage when component mounts
     const clearCart = () => {
       try {
-        localStorage.removeItem('cart');
+        localStorage.removeItem('fc_cart');
         console.log('🛒 Cart cleared after successful payment');
       } catch (error) {
         console.error('Error clearing cart:', error);
@@ -115,55 +115,58 @@ const PaymentSuccess = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 p-4">
-      <Card className="w-full max-w-2xl">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="rounded-full bg-green-100 p-3">
-              <CheckCircle className="w-16 h-16 text-green-600" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-emerald-50 to-blue-50 p-4">
+      <Card className="w-full max-w-2xl shadow-2xl border-green-200">
+        <CardHeader className="text-center bg-gradient-to-br from-green-50 to-emerald-50 border-b-2 border-green-200">
+          <div className="flex justify-center mb-6">
+            <div className="rounded-full bg-green-600 p-4 shadow-lg animate-bounce">
+              <CheckCircle className="w-20 h-20 text-white" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold text-green-600">Payment Successful!</CardTitle>
-          <p className="text-gray-600 mt-2">Thank you for your order</p>
+          <CardTitle className="text-4xl font-bold text-green-700 mb-2">Payment Successful!</CardTitle>
+          <p className="text-gray-700 text-lg font-medium mt-2">🎉 Thank you for your order</p>
         </CardHeader>
         
         <CardContent className="space-y-6">
           {/* Order Summary */}
           {orderDetails && (
-            <div className="bg-gray-50 rounded-lg p-6 space-y-4">
-              <h3 className="font-semibold text-lg">Order Details</h3>
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 space-y-4 border-2 border-green-200">
+              <h3 className="font-bold text-xl text-green-800 flex items-center gap-2">
+                <Package className="w-6 h-6" />
+                Order Details
+              </h3>
               
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Order ID</p>
-                  <p className="font-medium">{orderDetails._id}</p>
+                <div className="bg-white p-3 rounded-lg">
+                  <p className="text-xs text-gray-500 uppercase font-semibold">Order ID</p>
+                  <p className="font-bold text-gray-900 mt-1">{orderDetails.orderId || orderDetails._id}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Amount</p>
-                  <p className="font-medium text-green-600">₹{orderDetails.total?.toFixed(2)}</p>
+                <div className="bg-white p-3 rounded-lg">
+                  <p className="text-xs text-gray-500 uppercase font-semibold">Total Amount</p>
+                  <p className="font-bold text-green-700 text-xl mt-1">₹{orderDetails.total?.toFixed(2)}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Payment Status</p>
-                  <p className="font-medium capitalize">{orderDetails.paymentInfo?.paymentStatus}</p>
+                <div className="bg-white p-3 rounded-lg">
+                  <p className="text-xs text-gray-500 uppercase font-semibold">Payment Status</p>
+                  <p className="font-semibold capitalize text-green-600 mt-1">{orderDetails.paymentInfo?.paymentStatus || 'Completed'}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Order Status</p>
-                  <p className="font-medium capitalize">{orderDetails.status}</p>
+                <div className="bg-white p-3 rounded-lg">
+                  <p className="text-xs text-gray-500 uppercase font-semibold">Order Status</p>
+                  <p className="font-semibold capitalize text-blue-600 mt-1">{orderDetails.status || 'Pending'}</p>
                 </div>
               </div>
 
               {orderDetails.shippingAddress && (
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Shipping Address</p>
-                  <div className="text-sm">
-                    <p className="font-medium">{orderDetails.shippingAddress.name}</p>
-                    <p>{orderDetails.shippingAddress.address}</p>
-                    <p>
+                <div className="bg-white p-4 rounded-lg">
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-2">Delivery Address</p>
+                  <div className="text-sm space-y-1">
+                    <p className="font-bold text-gray-900">{orderDetails.shippingAddress.name}</p>
+                    <p className="text-gray-700">{orderDetails.shippingAddress.address}</p>
+                    <p className="text-gray-700">
                       {orderDetails.shippingAddress.city && `${orderDetails.shippingAddress.city}, `}
                       {orderDetails.shippingAddress.state && `${orderDetails.shippingAddress.state} `}
                       {orderDetails.shippingAddress.pincode}
                     </p>
-                    <p>{orderDetails.shippingAddress.phone}</p>
+                    <p className="text-gray-700 font-medium">☎ {orderDetails.shippingAddress.phone}</p>
                   </div>
                 </div>
               )}
@@ -171,14 +174,15 @@ const PaymentSuccess = () => {
           )}
 
           {/* Success Message */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-xl p-5">
             <div className="flex items-start gap-3">
-              <Package className="w-5 h-5 text-green-600 mt-0.5" />
+              <Package className="w-6 h-6 text-blue-600 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-green-900">What's Next?</h4>
-                <p className="text-sm text-green-800 mt-1">
-                  Your order has been confirmed and the farmer will start processing it. 
-                  You'll receive updates via email about your order status.
+                <h4 className="font-bold text-blue-900 text-lg">What's Next?</h4>
+                <p className="text-sm text-blue-800 mt-2 leading-relaxed">
+                  ✅ Your order has been confirmed and the farmer will start processing it.<br/>
+                  📧 You'll receive updates via email about your order status.<br/>
+                  🚚 Track your order from your dashboard.
                 </p>
               </div>
             </div>
@@ -188,7 +192,7 @@ const PaymentSuccess = () => {
           <div className="flex justify-center">
             <Button
               onClick={() => navigate('/')}
-              className="bg-green-600 hover:bg-green-700 px-8 py-6 text-lg"
+              className="bg-green-600 hover:bg-green-700 text-white px-10 py-7 text-lg font-bold shadow-lg hover:shadow-xl transition-all"
               size="lg"
             >
               Continue Shopping
@@ -197,8 +201,9 @@ const PaymentSuccess = () => {
           </div>
 
           {/* Additional Info */}
-          <div className="text-center text-sm text-gray-500">
-            <p>A confirmation email has been sent to your registered email address.</p>
+          <div className="text-center text-sm text-gray-600 bg-gray-50 p-4 rounded-lg">
+            <p className="font-medium">✉️ A confirmation email has been sent to your registered email address.</p>
+            <p className="text-xs text-gray-500 mt-2">Check your inbox for order details and tracking information</p>
           </div>
         </CardContent>
       </Card>
