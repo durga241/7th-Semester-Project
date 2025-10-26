@@ -48,7 +48,10 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
     isCertified: false,
     isSeasonal: false,
     status: 'available' as 'available' | 'unavailable',
-    discount: '' as string | number // Empty by default - farmer must enter
+    discount: '' as string | number, // Empty by default - farmer must enter
+    offerDuration: '', // Farmer must enter manually
+    offerHours: '', // Farmer must enter manually
+    offerMinutes: '' // Farmer must enter manually (for SMS testing)
   });
   const [notifications, setNotifications] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -669,6 +672,14 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
         formData.append('discount', discountValue.toString());
         console.log('🏷️ [PRODUCT] Discount being sent:', discountValue);
         
+        // Add custom offer duration fields
+        if (discountValue > 0) {
+          formData.append('offerDuration', newProduct.offerDuration || '7');
+          formData.append('offerHours', newProduct.offerHours || '0');
+          formData.append('offerMinutes', newProduct.offerMinutes || '0');
+          console.log(`⏰ [OFFER] Duration: ${newProduct.offerDuration}d ${newProduct.offerHours}h ${newProduct.offerMinutes}m`);
+        }
+        
         // Priority 1: Add image file if uploaded
         if (newProduct.image) {
           formData.append('image', newProduct.image);
@@ -681,8 +692,17 @@ const ComprehensiveFarmerDashboard: React.FC<ComprehensiveFarmerDashboardProps> 
         }
 
         console.log('[PRODUCT] Sending request to API...');
-        const response = await fetch('http://localhost:3001/api/products', {
-          method: 'POST',
+        
+        // Use PUT for update, POST for create
+        const url = editingProduct 
+          ? `http://localhost:3001/api/products/${editingProduct.id}`
+          : 'http://localhost:3001/api/products';
+        const method = editingProduct ? 'PUT' : 'POST';
+        
+        console.log(`[PRODUCT] ${method} ${url}`);
+        
+        const response = await fetch(url, {
+          method: method,
           headers: {
             'Authorization': `Bearer ${token}`
             // Don't set Content-Type - let browser set it with boundary for FormData
@@ -814,7 +834,10 @@ Current localStorage role: ${userRole || 'unknown'}`);
         isCertified: false,
         isSeasonal: false,
         status: 'available',
-        discount: ''
+        discount: '',
+        offerDuration: '',
+        offerHours: '',
+        offerMinutes: ''
       });
       setEditingProduct(null);
       setShowAddProduct(false);
@@ -837,21 +860,24 @@ Current localStorage role: ${userRole || 'unknown'}`);
       name: product.name,
       category: product.category,
       price: product.price.toString(),
-      quantity: product.quantity?.toString() || product.stock?.toString() || '',
+      quantity: product.quantity.toString(),
       unit: product.unit || 'kg',
       description: product.description || '',
       image: null,
-      imageUrl: product.image || '',
+      imageUrl: product.imageUrl || '',
       isOrganic: product.isOrganic || false,
       isCertified: product.isCertified || false,
       isSeasonal: product.isSeasonal || false,
       status: product.status || 'available',
-      discount: product.discount || 0
+      discount: product.discount || '',
+      offerDuration: '',
+      offerHours: '',
+      offerMinutes: ''
     });
     setShowAddProduct(true);
+    setActiveSection('products');
   };
 
-  // Handle delete product
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm('Are you sure you want to delete this product? This will remove it from the database and customer view.')) {
       return;
@@ -1241,6 +1267,124 @@ Current localStorage role: ${userRole || 'unknown'}`);
                   </p>
                 </div>
 
+                {/* Offer Management Section */}
+                {newProduct.discount && Number(newProduct.discount) > 0 && (
+                  <>
+                    {/* Offer End Date/Time */}
+                    <div className="col-span-2 bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
+                      <Label className="font-semibold text-blue-800 flex items-center gap-2 mb-3">
+                        <span className="text-xl">⏰</span> Weekly Offer Settings
+                      </Label>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Days Input */}
+                        <div className="bg-white p-3 rounded border-2 border-blue-300">
+                          <Label className="text-sm font-semibold text-blue-700 mb-2 block">
+                            Days *
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="365"
+                            value={newProduct.offerDuration}
+                            onChange={(e) => setNewProduct({...newProduct, offerDuration: e.target.value})}
+                            className="text-center text-lg font-bold border-blue-300"
+                            placeholder="Enter days (e.g., 7)"
+                            required
+                          />
+                          <p className="text-xs text-blue-600 mt-1 text-center font-medium">Required field</p>
+                        </div>
+
+                        {/* Hours Input */}
+                        <div className="bg-white p-3 rounded border-2 border-blue-300">
+                          <Label className="text-sm font-semibold text-blue-700 mb-2 block">
+                            Hours *
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="23"
+                            value={newProduct.offerHours}
+                            onChange={(e) => setNewProduct({...newProduct, offerHours: e.target.value})}
+                            className="text-center text-lg font-bold border-blue-300"
+                            placeholder="Enter hours (0-23)"
+                            required
+                          />
+                          <p className="text-xs text-blue-600 mt-1 text-center font-medium">Required field</p>
+                        </div>
+
+                        {/* Minutes Input */}
+                        <div className="bg-white p-3 rounded border-2 border-orange-300">
+                          <Label className="text-sm font-semibold text-orange-700 mb-2 block flex items-center gap-1">
+                            <span>Minutes *</span>
+                            <span className="text-xs bg-orange-100 px-2 py-0.5 rounded">SMS Test</span>
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="59"
+                            value={newProduct.offerMinutes}
+                            onChange={(e) => setNewProduct({...newProduct, offerMinutes: e.target.value})}
+                            className="text-center text-lg font-bold border-orange-300"
+                            placeholder="Enter minutes (0-59)"
+                            required
+                          />
+                          <p className="text-xs text-orange-600 mt-1 text-center font-medium">Required (Use 5 for SMS test!)</p>
+                        </div>
+
+                        {/* Duration Preview */}
+                        <div className="col-span-3 bg-gradient-to-r from-green-50 to-blue-50 p-3 rounded border-2 border-green-200">
+                          <p className="text-sm font-semibold text-green-700 mb-1">📊 Total Offer Duration:</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            {newProduct.offerDuration || '0'} Days, {newProduct.offerHours || '0'} Hours, {newProduct.offerMinutes || '0'} Minutes
+                          </p>
+                          <p className="text-xs text-gray-600 mt-2">
+                            ⏳ Countdown timer will appear on your product in the Weekly Offers section!
+                          </p>
+                          <p className="text-xs text-orange-600 mt-1 font-medium">
+                            💡 Tip: Set to "0 Days, 0 Hours, 5 Minutes" to test SMS notification immediately!
+                          </p>
+                        </div>
+
+                        {/* SMS Notification Toggle */}
+                        <div className="col-span-2 bg-white p-3 rounded border border-blue-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <Label className="font-semibold text-blue-800 flex items-center gap-2">
+                              <span className="text-lg">📱</span> SMS Notifications
+                            </Label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                className="sr-only peer"
+                                defaultChecked={true}
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                          </div>
+                          <p className="text-xs text-gray-600 mb-3">
+                            Send SMS to ALL customers 1 hour before offer expires.
+                          </p>
+                          
+                          {/* SMS Preview */}
+                          <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                            <p className="text-xs font-semibold text-gray-700 mb-1">SMS Message Preview:</p>
+                            <p className="text-xs text-gray-600 italic">
+                              "⏰ LAST CHANCE! Offer on {newProduct.name || '[Product Name]'} ({newProduct.discount}% OFF) ends in 1h. Grab it now! - FarmConnect"
+                            </p>
+                          </div>
+
+                          {/* SMS Info */}
+                          <div className="mt-3 bg-green-50 p-2 rounded border border-green-200">
+                            <p className="text-xs text-green-700">
+                              ✅ SMS will be sent automatically by the system 1 hour before expiry.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 {/* Description */}
                 <div className="col-span-2">
                   <Label className="font-semibold">Description</Label>
@@ -1375,7 +1519,8 @@ Current localStorage role: ${userRole || 'unknown'}`);
                     setNewProduct({
                       name: '', category: '', price: '', quantity: '', unit: 'kg',
                       description: '', image: null, imageUrl: '', isOrganic: false, 
-                      isCertified: false, isSeasonal: false, status: 'available', discount: ''
+                      isCertified: false, isSeasonal: false, status: 'available', discount: '',
+                      offerDuration: '', offerHours: '', offerMinutes: ''
                     });
                   }}
                   className="flex-1"

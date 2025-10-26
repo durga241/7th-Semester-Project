@@ -13,7 +13,31 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 // Load environment variables from server directory FIRST
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+const envPath = path.resolve(__dirname, '.env');
+console.log('========================================');
+console.log('🔧 LOADING ENVIRONMENT VARIABLES');
+console.log('========================================');
+console.log('ENV file path:', envPath);
+const envResult = dotenv.config({ path: envPath });
+
+if (envResult.error) {
+  console.log('❌ ERROR loading .env file:', envResult.error.message);
+} else {
+  console.log('✅ .env file loaded successfully');
+  console.log('📋 Checking Twilio SMS configuration...');
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+    console.log(`✅ TWILIO_ACCOUNT_SID: ${process.env.TWILIO_ACCOUNT_SID.substring(0, 10)}...`);
+    console.log(`✅ TWILIO_AUTH_TOKEN: ${'*'.repeat(10)}...`);
+    console.log(`✅ TWILIO_PHONE_NUMBER: ${process.env.TWILIO_PHONE_NUMBER}`);
+  } else {
+    console.log('⚠️  Twilio not fully configured!');
+    console.log('   Add these to your .env file:');
+    console.log('   TWILIO_ACCOUNT_SID=your_account_sid');
+    console.log('   TWILIO_AUTH_TOKEN=your_auth_token');
+    console.log('   TWILIO_PHONE_NUMBER=+1234567890');
+  }
+}
+console.log('========================================\n');
 
 const User = require('./models/User');
 const Product = require('./models/Product');
@@ -21,6 +45,7 @@ const Order = require('./models/Order');
 const Otp = require('./models/Otp');
 const stripeController = require('./controllers/stripeController');
 const contactController = require('./controllers/contactController');
+const { initializeTwilio } = require('./services/smsService');
 
 const app = express();
 const server = http.createServer(app);
@@ -829,7 +854,8 @@ app.post('/api/products', auth, upload.single('image'), async (req, res) => {
       console.log(`🏷️ [PRODUCT] Discount received from request: ${req.body.discount}`);
       console.log(`🏷️ [PRODUCT] Discount value to save: ${discountValue}`);
       
-      product = await Product.create({
+      // Set offer dates if discount is present
+      const productData = {
         title: req.body.title,
         description: req.body.description || '',
         price: Number(req.body.price),
@@ -840,7 +866,38 @@ app.post('/api/products', auth, upload.single('image'), async (req, res) => {
         status: req.body.status || 'available',
         visibility: req.body.visibility || 'visible',
         discount: discountValue
-      });
+      };
+
+      // Automatically set offer dates when discount is added
+      if (discountValue > 0) {
+        const now = new Date();
+        productData.offerStartDate = now;
+        
+        // Get custom duration from farmer (allow 0 values, only default if undefined/empty)
+        const offerDays = req.body.offerDuration !== undefined && req.body.offerDuration !== '' 
+          ? Number(req.body.offerDuration) 
+          : 7;
+        const offerHours = req.body.offerHours !== undefined && req.body.offerHours !== '' 
+          ? Number(req.body.offerHours) 
+          : 0;
+        const offerMinutes = req.body.offerMinutes !== undefined && req.body.offerMinutes !== '' 
+          ? Number(req.body.offerMinutes) 
+          : 0;
+        
+        // Calculate total milliseconds
+        const totalMs = (offerDays * 24 * 60 * 60 * 1000) + 
+                       (offerHours * 60 * 60 * 1000) + 
+                       (offerMinutes * 60 * 1000);
+        
+        productData.offerEndDate = new Date(now.getTime() + totalMs);
+        productData.offerExpired = false;
+        productData.smsNotificationSent = false;
+        
+        console.log(`⏰ [OFFER] Custom duration: ${offerDays}d ${offerHours}h ${offerMinutes}m`);
+        console.log(`⏰ [OFFER] Offer set: Start=${productData.offerStartDate.toISOString()}, End=${productData.offerEndDate.toISOString()}`);
+      }
+      
+      product = await Product.create(productData);
       console.log(`[PRODUCT] ✅ Product created successfully: ${product.title}`);
       console.log(`🏷️ [PRODUCT] Product saved with discount: ${product.discount}%`);
     } catch (dbError) {
@@ -982,6 +1039,40 @@ app.put('/api/products/:id', auth, upload.single('image'), async (req, res) => {
       ['title','description','price','quantity','category','imageUrl','status','visibility','discount'].forEach((k) => {
         if (req.body[k] !== undefined) product[k] = req.body[k];
       });
+      
+      // Update offer dates if discount is changed
+      const discountValue = Number(req.body.discount);
+      if (discountValue > 0) {
+        const now = new Date();
+        product.offerStartDate = now;
+        
+        // Get custom duration from farmer (allow 0 values, only default if undefined/empty)
+        const offerDays = req.body.offerDuration !== undefined && req.body.offerDuration !== '' 
+          ? Number(req.body.offerDuration) 
+          : 7;
+        const offerHours = req.body.offerHours !== undefined && req.body.offerHours !== '' 
+          ? Number(req.body.offerHours) 
+          : 0;
+        const offerMinutes = req.body.offerMinutes !== undefined && req.body.offerMinutes !== '' 
+          ? Number(req.body.offerMinutes) 
+          : 0;
+        
+        // Calculate total milliseconds
+        const totalMs = (offerDays * 24 * 60 * 60 * 1000) + 
+                       (offerHours * 60 * 60 * 1000) + 
+                       (offerMinutes * 60 * 1000);
+        
+        product.offerEndDate = new Date(now.getTime() + totalMs);
+        product.offerExpired = false;
+        product.smsNotificationSent = false;
+        
+        console.log(`⏰ [OFFER UPDATE] Duration: ${offerDays}d ${offerHours}h ${offerMinutes}m`);
+        console.log(`⏰ [OFFER UPDATE] New end date: ${product.offerEndDate.toISOString()}`);
+      } else if (discountValue === 0) {
+        // Remove offer if discount is set to 0
+        product.offerExpired = true;
+      }
+      
       await product.save();
       console.log(`[PRODUCT] ✅ Product updated in database: ${product.title}`);
     } else {
@@ -2311,11 +2402,86 @@ io.on('connection', (socket) => {
   });
 });
 
+// ============================================
+// OFFER EXPIRY & SMS NOTIFICATION SYSTEM
+// ============================================
+const offerService = require('./services/offerService');
+
+// API endpoint to manually check expiring offers
+app.post('/api/offers/check-expiring', async (req, res) => {
+  try {
+    console.log('[API] Manual check for expiring offers triggered');
+    const result = await offerService.checkExpiringOffers();
+    res.json({ ok: true, result });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// API endpoint to manually check expired offers
+app.post('/api/offers/check-expired', async (req, res) => {
+  try {
+    console.log('[API] Manual check for expired offers triggered');
+    const result = await offerService.checkExpiredOffers();
+    res.json({ ok: true, result });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// API endpoint to get active offers
+app.get('/api/offers/active', async (req, res) => {
+  try {
+    const offers = await offerService.getActiveOffers();
+    res.json({ ok: true, offers, count: offers.length });
+  } catch (error) {
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+// Cron job to check offers every hour
+const checkOffersCron = () => {
+  console.log('[CRON] Running offer check...');
+  
+  // Check for expiring offers (sends SMS)
+  offerService.checkExpiringOffers()
+    .then(result => {
+      if (result.sent) {
+        console.log(`[CRON] ✅ Sent ${result.sent} SMS notifications for ${result.products} expiring products`);
+      }
+    })
+    .catch(err => console.error('[CRON] ❌ Error checking expiring offers:', err));
+
+  // Check for expired offers (marks as expired)
+  offerService.checkExpiredOffers()
+    .then(result => {
+      if (result.expired) {
+        console.log(`[CRON] ⛔ Marked ${result.expired} offers as expired`);
+      }
+    })
+    .catch(err => console.error('[CRON] ❌ Error checking expired offers:', err));
+};
+
+// Run cron job every 5 minutes for better accuracy
+setInterval(checkOffersCron, 5 * 60 * 1000); // 5 minutes
+console.log('[CRON] ✅ Offer check scheduled to run every 5 minutes');
+
+// Run once on startup
+setTimeout(() => {
+  console.log('[STARTUP] Running initial offer check...');
+  checkOffersCron();
+}, 5000); // Wait 5 seconds after startup
+
 // Start the server
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`WebSocket server is running on ws://localhost:${PORT}`);
+  console.log(`⏰ Offer expiry system: ACTIVE`);
+  
+  // Initialize Twilio for SMS
+  console.log('\n📱 Initializing SMS Service...');
+  initializeTwilio();
 });
 
 // Optional: secure seed endpoint (requires SEED_TOKEN)

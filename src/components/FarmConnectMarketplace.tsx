@@ -25,6 +25,9 @@ interface Product {
   stock: number;
   rating: number;
   discount?: number;
+  offerEndDate?: string; // ISO date string from backend
+  offerStartDate?: string;
+  offerExpired?: boolean;
 }
 
 const FarmConnectMarketplace = () => {
@@ -52,6 +55,8 @@ const FarmConnectMarketplace = () => {
   const [activeView, setActiveView] = useState<'home' | 'myorders' | 'wishlist' | 'editprofile'>('home');
   const [orders, setOrders] = useState<any[]>([]);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  const [showAllOffers, setShowAllOffers] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date().getTime());
   const [deliveryAddress, setDeliveryAddress] = useState({
     name: '',
     phone: '',
@@ -230,9 +235,19 @@ const FarmConnectMarketplace = () => {
     }
   }, [cart]);
 
-  // Fetch products
+  // Fetch products on mount
   useEffect(() => {
     fetchProducts();
+  }, []);
+
+  // Auto-refresh products every 30 seconds to show new additions
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      console.log('[AUTO-REFRESH] Refreshing products...');
+      fetchProducts();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   // Auto-rotate banner carousel
@@ -245,6 +260,15 @@ const FarmConnectMarketplace = () => {
 
     return () => clearInterval(interval);
   }, [isPaused, banners.length]);
+
+  // Update countdown timer every second for Weekly Offers
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().getTime());
+    }, 1000); // Update every second
+
+    return () => clearInterval(timer);
+  }, []);
 
   const nextBanner = () => {
     setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
@@ -278,7 +302,10 @@ const FarmConnectMarketplace = () => {
             stock: p.quantity || p.stock || 100,
             rating: 4.5,
             status: p.status || 'available',
-            discount: p.discount || 0  // ✅ ADD DISCOUNT FIELD!
+            discount: p.discount || 0,
+            offerEndDate: p.offerEndDate,
+            offerStartDate: p.offerStartDate,
+            offerExpired: p.offerExpired || false
           };
         });
         console.log('[PRODUCTS] Mapped products:', mappedProducts.length);
@@ -526,14 +553,23 @@ const FarmConnectMarketplace = () => {
               <div className="w-full flex items-center bg-white rounded-md overflow-hidden border border-gray-300 shadow-sm">
                 <input
                   type="text"
-                  placeholder="Search for vegetables, fruits, grains, dairy products..."
+                  placeholder="Search for vegetables, fruits, fruits, grains, dairy products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && searchQuery.trim()) {
+                      setActiveSection('products');
+                    }
+                  }}
                   className="flex-1 px-4 py-2 text-sm outline-none bg-white"
                 />
                 <button 
                   className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 transition-colors flex items-center justify-center flex-shrink-0"
-                  onClick={() => {/* Add search logic */}}
+                  onClick={() => {
+                    if (searchQuery.trim()) {
+                      setActiveSection('products');
+                    }
+                  }}
                 >
                   <Search className="w-5 h-5" />
                 </button>
@@ -924,7 +960,10 @@ const FarmConnectMarketplace = () => {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Fresh Vegetables */}
-            <div className="bg-white rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border border-gray-200">
+            <div 
+              onClick={() => { setSelectedCategory('Vegetables'); setActiveSection('products'); }}
+              className="bg-white rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border border-gray-200"
+            >
               <div className="h-48 bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center p-4">
                 <img 
                   src="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400&h=300&fit=crop" 
@@ -939,7 +978,10 @@ const FarmConnectMarketplace = () => {
             </div>
 
             {/* Fresh Fruits */}
-            <div className="bg-white rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border border-gray-200">
+            <div 
+              onClick={() => { setSelectedCategory('Fruits'); setActiveSection('products'); }}
+              className="bg-white rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border border-gray-200"
+            >
               <div className="h-48 bg-gradient-to-br from-yellow-50 to-yellow-100 flex items-center justify-center p-4">
                 <img 
                   src="https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=400&h=300&fit=crop" 
@@ -954,7 +996,10 @@ const FarmConnectMarketplace = () => {
             </div>
 
             {/* Cuts & Exotics */}
-            <div className="bg-white rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border border-gray-200">
+            <div 
+              onClick={() => { setSelectedCategory('Fruits'); setActiveSection('products'); }}
+              className="bg-white rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border border-gray-200"
+            >
               <div className="h-48 bg-gradient-to-br from-pink-50 to-pink-100 flex items-center justify-center p-4">
                 <img 
                   src="https://images.unsplash.com/photo-1528825871115-3581a5387919?w=400&h=300&fit=crop" 
@@ -969,7 +1014,10 @@ const FarmConnectMarketplace = () => {
             </div>
 
             {/* Herbs & Seasonings */}
-            <div className="bg-white rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border border-gray-200">
+            <div 
+              onClick={() => { setSelectedCategory('Other'); setActiveSection('products'); }}
+              className="bg-white rounded-lg overflow-hidden hover:shadow-xl transition-shadow cursor-pointer border border-gray-200"
+            >
               <div className="h-48 bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
                 <img 
                   src="https://images.unsplash.com/photo-1509358271058-acd22cc93898?w=400&h=300&fit=crop" 
@@ -1029,7 +1077,6 @@ const FarmConnectMarketplace = () => {
 
                 {/* Product Info */}
                 <h3 className="font-bold text-lg mb-1">{product.name}</h3>
-                <p className="text-sm text-gray-600 mb-2">By {product.farmer}</p>
                 
                 {/* Discount Display */}
                 {product.discount && product.discount > 0 ? (
@@ -1096,6 +1143,433 @@ const FarmConnectMarketplace = () => {
             <p className="text-gray-500 text-lg">No products found</p>
           </div>
         )}
+
+        {/* Shop by Category Section */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <h2 className="text-3xl font-bold text-gray-900 mb-8 text-center">Shop by Category</h2>
+          
+          {/* Auto-scrolling Category Cards Container */}
+          <div className="relative overflow-hidden">
+            <style>{`
+              @keyframes scroll-categories {
+                0% { transform: translateX(0); }
+                100% { transform: translateX(-50%); }
+              }
+              .animate-scroll-categories {
+                animation: scroll-categories 40s linear infinite;
+              }
+              .animate-scroll-categories:hover {
+                animation-play-state: paused;
+              }
+            `}</style>
+            
+            {/* Horizontal Scrolling Category Cards */}
+            <div className="flex gap-6 animate-scroll-categories"
+                 style={{ width: 'max-content' }}>
+            {/* Leafy Greens */}
+            <div 
+              onClick={() => { setSelectedCategory('Vegetables'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-green-100 group-hover:border-green-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300&h=300&fit=crop" 
+                  alt="Leafy Greens" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-green-600 transition-colors">Leafy Greens</h3>
+            </div>
+
+            {/* Root & Tuber Crops */}
+            <div 
+              onClick={() => { setSelectedCategory('Vegetables'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-orange-100 group-hover:border-orange-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=300&h=300&fit=crop" 
+                  alt="Root & Tuber Crops" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-orange-600 transition-colors">Root & Tuber Crops 🥕</h3>
+            </div>
+
+            {/* Fruits & Berries */}
+            <div 
+              onClick={() => { setSelectedCategory('Fruits'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-red-100 group-hover:border-red-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?w=300&h=300&fit=crop" 
+                  alt="Fruits & Berries" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-red-600 transition-colors">Fruits & Berries</h3>
+            </div>
+
+            {/* Citrus & Tropical Fruits */}
+            <div 
+              onClick={() => { setSelectedCategory('Fruits'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-yellow-100 group-hover:border-yellow-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1577234286642-fc512a5f8f11?w=300&h=300&fit=crop" 
+                  alt="Citrus & Tropical Fruits" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-yellow-600 transition-colors">Citrus & Tropical</h3>
+            </div>
+
+            {/* Organic Produce */}
+            <div 
+              onClick={() => { setSelectedCategory('All'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-emerald-100 group-hover:border-emerald-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=300&h=300&fit=crop" 
+                  alt="Organic Produce" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors">Organic Produce 🌱</h3>
+            </div>
+
+            {/* Exotic & Imported Fruits */}
+            <div 
+              onClick={() => { setSelectedCategory('Fruits'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-purple-100 group-hover:border-purple-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=300&h=300&fit=crop" 
+                  alt="Exotic & Imported Fruits" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-purple-600 transition-colors">Exotic & Imported</h3>
+            </div>
+
+            {/* Herbs & Spices */}
+            <div 
+              onClick={() => { setSelectedCategory('Other'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-teal-100 group-hover:border-teal-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1509358271058-acd22cc93898?w=300&h=300&fit=crop" 
+                  alt="Herbs & Spices" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-teal-600 transition-colors">Herbs & Spices</h3>
+            </div>
+
+            {/* Seasonal Specials */}
+            <div 
+              onClick={() => { setSelectedCategory('All'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-pink-100 group-hover:border-pink-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=300&h=300&fit=crop" 
+                  alt="Seasonal Specials" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-pink-600 transition-colors">Seasonal Specials</h3>
+            </div>
+
+            {/* Daily Essentials */}
+            <div 
+              onClick={() => { setSelectedCategory('Dairy'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-blue-100 group-hover:border-blue-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=300&h=300&fit=crop" 
+                  alt="Daily Essentials" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">Daily Essentials</h3>
+            </div>
+
+            {/* Duplicate all categories for seamless loop */}
+            {/* Leafy Greens - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('Vegetables'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-green-100 group-hover:border-green-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=300&h=300&fit=crop" 
+                  alt="Leafy Greens" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-green-600 transition-colors">Leafy Greens</h3>
+            </div>
+
+            {/* Root & Tuber Crops - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('Vegetables'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-orange-100 group-hover:border-orange-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=300&h=300&fit=crop" 
+                  alt="Root & Tuber Crops" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-orange-600 transition-colors">Root & Tuber Crops 🥕</h3>
+            </div>
+
+            {/* Fruits & Berries - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('Fruits'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-red-100 group-hover:border-red-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1464965911861-746a04b4bca6?w=300&h=300&fit=crop" 
+                  alt="Fruits & Berries" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-red-600 transition-colors">Fruits & Berries</h3>
+            </div>
+
+            {/* Citrus & Tropical Fruits - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('Fruits'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-yellow-100 group-hover:border-yellow-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1577234286642-fc512a5f8f11?w=300&h=300&fit=crop" 
+                  alt="Citrus & Tropical Fruits" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-yellow-600 transition-colors">Citrus & Tropical</h3>
+            </div>
+
+            {/* Organic Produce - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('All'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-emerald-100 group-hover:border-emerald-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=300&h=300&fit=crop" 
+                  alt="Organic Produce" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors">Organic Produce 🌱</h3>
+            </div>
+
+            {/* Exotic & Imported Fruits - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('Fruits'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-purple-100 group-hover:border-purple-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=300&h=300&fit=crop" 
+                  alt="Exotic & Imported Fruits" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-purple-600 transition-colors">Exotic & Imported</h3>
+            </div>
+
+            {/* Herbs & Spices - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('Other'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-teal-100 group-hover:border-teal-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1509358271058-acd22cc93898?w=300&h=300&fit=crop" 
+                  alt="Herbs & Spices" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-teal-600 transition-colors">Herbs & Spices</h3>
+            </div>
+
+            {/* Seasonal Specials - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('All'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-pink-100 group-hover:border-pink-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=300&h=300&fit=crop" 
+                  alt="Seasonal Specials" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-pink-600 transition-colors">Seasonal Specials</h3>
+            </div>
+
+            {/* Daily Essentials - Duplicate */}
+            <div 
+              onClick={() => { setSelectedCategory('Dairy'); setActiveSection('products'); }}
+              className="flex-shrink-0 w-40 cursor-pointer group snap-start"
+            >
+              <div className="w-40 h-40 rounded-full overflow-hidden mb-3 border-4 border-blue-100 group-hover:border-blue-500 transition-all shadow-lg group-hover:shadow-xl">
+                <img 
+                  src="https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=300&h=300&fit=crop" 
+                  alt="Daily Essentials" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                />
+              </div>
+              <h3 className="text-center font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">Daily Essentials</h3>
+            </div>
+          </div>
+          </div>
+        </section>
+
+        {/* Weekly Offers with Countdown Section - REDESIGNED */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+                <span className="text-4xl">⚡</span> Weekly Offers
+              </h2>
+              <p className="text-gray-600 mt-1">Limited time deals - Grab them before they expire!</p>
+            </div>
+            {products.filter(p => p.discount && p.discount > 0).length > 4 && (
+              <Button
+                onClick={() => setShowAllOffers(!showAllOffers)}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-full"
+              >
+                {showAllOffers ? 'Show Less' : 'View All'}
+              </Button>
+            )}
+          </div>
+
+          {/* Offers Grid */}
+          {products.filter(p => p.discount && p.discount > 0).length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {products
+                .filter(p => p.discount && p.discount > 0)
+                .slice(0, showAllOffers ? undefined : 4)
+                .map(product => {
+                  // Calculate countdown using actual offerEndDate from backend
+                  const offerEndTime = product.offerEndDate 
+                    ? new Date(product.offerEndDate).getTime()
+                    : (currentTime + 7 * 24 * 60 * 60 * 1000); // Fallback to 7 days if not set
+                  
+                  const timeLeft = offerEndTime - currentTime;
+                  const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+                  const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                  const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                  const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+                  
+                  // Check if expiring soon (less than 1 hour)
+                  const isExpiringSoon = timeLeft < (1 * 60 * 60 * 1000); // 1 hour = 3600000 ms
+                  
+                  // Skip if offer already expired
+                  if (product.offerExpired || timeLeft <= 0) {
+                    return null;
+                  }
+
+                  return (
+                    <div key={product.id} className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border-2 border-orange-100 hover:border-orange-300">
+                      {/* Product Image with Badges */}
+                      <div className="relative h-48 bg-gradient-to-br from-gray-50 to-gray-100">
+                        {product.image && (product.image.startsWith('http://') || product.image.startsWith('https://') || product.image.startsWith('/')) ? (
+                          <img 
+                            src={product.image.startsWith('/') ? `http://localhost:3001${product.image}` : product.image}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.innerHTML = `<div class="flex items-center justify-center h-full text-6xl">${product.image || '🌾'}</div>`;
+                            }}
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-6xl">{product.image || '🌾'}</div>
+                        )}
+                        
+                        {/* Static Discount Badge (no animation) */}
+                        <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-lg">
+                          {product.discount}% OFF
+                        </div>
+
+                        {/* Expiring Soon Badge */}
+                        {isExpiringSoon && (
+                          <div className="absolute top-3 right-3 bg-yellow-400 text-gray-900 px-2 py-1 rounded-md text-xs font-bold shadow-md">
+                            ⚠️ HURRY!
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Product Details */}
+                      <div className="p-4">
+                        {/* Product Name */}
+                        <h3 className="font-bold text-lg text-gray-900 mb-2 truncate">{product.name}</h3>
+                        
+                        {/* Original Price (strikethrough) */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm text-gray-400 line-through">₹{product.price}/kg</span>
+                          <span className="text-xs text-gray-500">Stock: {product.stock} kg</span>
+                        </div>
+
+                        {/* Discounted Price */}
+                        <div className="mb-3">
+                          <span className="text-3xl font-bold text-green-600">
+                            ₹{Math.round(product.price * (1 - product.discount / 100))}
+                          </span>
+                          <span className="text-sm text-gray-500">/kg</span>
+                        </div>
+
+                        {/* Live Countdown Timer */}
+                        <div className={`mb-4 p-3 rounded-lg ${isExpiringSoon ? 'bg-red-50 border-2 border-red-300' : 'bg-blue-50 border-2 border-blue-200'}`}>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">⏳</span>
+                              <span className={`text-xs font-semibold ${isExpiringSoon ? 'text-red-600' : 'text-blue-600'}`}>
+                                Offer ends in:
+                              </span>
+                            </div>
+                            <div className={`text-sm font-bold ${isExpiringSoon ? 'text-red-700' : 'text-blue-700'}`}>
+                              {days}d {hours}h {minutes}m {seconds}s
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Add to Cart Button */}
+                        <Button
+                          onClick={() => addToCart(product, 1)}
+                          className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold py-3 rounded-lg shadow-md hover:shadow-lg transition-all"
+                        >
+                          🛒 Grab Deal
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })
+                .filter(Boolean)} {/* Remove null entries (expired offers) */}
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-gradient-to-br from-orange-50 to-red-50 rounded-2xl shadow-inner">
+              <div className="text-6xl mb-4">🎁</div>
+              <p className="text-gray-600 text-lg font-medium">No active offers at the moment. Check back soon!</p>
+            </div>
+          )}
+        </section>
       </section>
       )}
 
@@ -1148,7 +1622,6 @@ const FarmConnectMarketplace = () => {
                     )}
                   </div>
                   <h3 className="font-bold text-lg mb-1">{product.name}</h3>
-                  <p className="text-sm text-gray-600 mb-2">By {product.farmer}</p>
                   
                   {/* Discount Display */}
                   {product.discount && product.discount > 0 ? (
@@ -1416,7 +1889,6 @@ const FarmConnectMarketplace = () => {
                       </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-sm">{item.product.name}</h3>
-                        <p className="text-xs text-gray-500 mb-2">By {item.product.farmer}</p>
                         {item.product.discount && item.product.discount > 0 && (
                           <div className="flex items-center gap-2 mb-2">
                             <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded font-bold">

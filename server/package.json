@@ -25,7 +25,8 @@
     "passport-google-oauth20": "^2.0.0",
     "razorpay": "^2.9.6",
     "socket.io": "^4.8.1",
-    "stripe": "^19.1.0"
+    "stripe": "^19.1.0",
+    "twilio": "^5.10.3"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const { sendOrderConfirmationSMS } = require('../services/smsService');
 
 // Initialize Stripe with test mode configuration
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -245,6 +246,33 @@ exports.verifyStripePayment = async (req, res) => {
         // Don't fail the order if notification fails
       }
 
+      // Send SMS confirmation to customer
+      try {
+        const customer = await User.findById(order.customerId);
+        if (customer && customer.phone) {
+          const orderDate = new Date(order.createdAt);
+          const formattedDate = orderDate.toLocaleString('en-IN', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+            timeZone: 'Asia/Kolkata'
+          });
+
+          await sendOrderConfirmationSMS(customer.phone, {
+            customerName: customer.name,
+            orderId: order._id.toString().substring(0, 8).toUpperCase(),
+            totalAmount: order.total.toFixed(2),
+            paymentMode: 'Stripe (Card/UPI)',
+            dateTime: formattedDate
+          });
+          console.log(`📱 SMS confirmation sent to customer: ${customer.phone}`);
+        } else {
+          console.log(`⚠️ Customer phone number not available for SMS`);
+        }
+      } catch (smsError) {
+        console.error('⚠️ Failed to send SMS confirmation:', smsError.message);
+        // Don't fail the order if SMS fails
+      }
+
       console.log(`✅ Payment verified and order confirmed: ${order._id}`);
       
       return res.json({
@@ -375,6 +403,30 @@ exports.handleStripeWebhook = async (req, res) => {
             console.log(`✅ Webhook: Notification created for farmer: ${order.farmerId}`);
           } catch (notifError) {
             console.error('⚠️ Webhook: Failed to create notification:', notifError);
+          }
+
+          // Send SMS confirmation to customer (Webhook)
+          try {
+            const customer = await User.findById(order.customerId);
+            if (customer && customer.phone) {
+              const orderDate = new Date(order.createdAt);
+              const formattedDate = orderDate.toLocaleString('en-IN', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+                timeZone: 'Asia/Kolkata'
+              });
+
+              await sendOrderConfirmationSMS(customer.phone, {
+                customerName: customer.name,
+                orderId: order._id.toString().substring(0, 8).toUpperCase(),
+                totalAmount: order.total.toFixed(2),
+                paymentMode: 'Stripe (Card/UPI)',
+                dateTime: formattedDate
+              });
+              console.log(`📱 Webhook: SMS confirmation sent to: ${customer.phone}`);
+            }
+          } catch (smsError) {
+            console.error('⚠️ Webhook: Failed to send SMS:', smsError.message);
           }
 
           console.log(`✅ Webhook: Order confirmed: ${order._id}`);
